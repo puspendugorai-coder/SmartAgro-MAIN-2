@@ -193,18 +193,12 @@
 .day-tabs {
   display: flex;
   gap: 8px;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE and Edge */
+  flex-wrap: wrap;
   margin-bottom: 20px;
   padding: 14px;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-}
-.day-tabs::-webkit-scrollbar {
-  display: none; /* Safari and Chrome */
 }
 .day-tab {
   display: flex;
@@ -220,7 +214,6 @@
   border: 1px solid var(--border);
   transition: var(--trans);
   min-width: 68px;
-  flex-shrink: 0;
 }
 .day-tab:hover, .day-tab.active {
   background: var(--green-glow);
@@ -603,7 +596,6 @@
   border: none;
   background: transparent;
   flex: 1;
-  min-width: 0;
 }
 .btn-whatsapp-share {
   display: inline-flex;
