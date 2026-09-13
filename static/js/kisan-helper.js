@@ -115,35 +115,9 @@
   </div>
 </div>
 
-<div id="kisanPromptBox" style="
-  position: fixed;
-  bottom: calc(95px + env(safe-area-inset-bottom, 0px));
-  right: calc(28px + env(safe-area-inset-right, 0px));
-  background: rgba(34, 197, 94, 0.85);
-  backdrop-filter: blur(4px);
-  color: white;
-  padding: 8px 14px;
-  border-radius: 20px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-  z-index: 9998;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.5s ease-in-out;
-  animation: promptBlink 2s ease-in-out infinite;
-">
+<div id="kisanPromptBox">
   Need help? Ask me! 🌿
-  <div style="
-    position: absolute;
-    bottom: -6px;
-    right: 20px;
-    width: 0;
-    height: 0;
-    border-left: 6px solid transparent;
-    border-right: 6px solid transparent;
-    border-top: 6px solid rgba(34, 197, 94, 0.85);
-  "></div>
+  <div class="kisan-prompt-arrow"></div>
 </div>`);
 
   // Apply translations to the widget immediately after injecting it, so it
@@ -195,6 +169,38 @@
 @keyframes kwp { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.6);opacity:.4} }
 @keyframes promptBlink { 0% { transform: translateY(0); opacity: 0.9; } 50% { transform: translateY(-4px); opacity: 1; } 100% { transform: translateY(0); opacity: 0.9; } }
 
+#kisanPromptBox {
+  position: fixed;
+  bottom: calc(95px + env(safe-area-inset-bottom, 0px));
+  right: calc(28px + env(safe-area-inset-right, 0px));
+  background: rgba(34, 197, 94, 0.5);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: white;
+  padding: 8px 14px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  z-index: 10000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease-in-out;
+}
+#kisanPromptBox.show {
+  opacity: 1;
+  animation: promptBlink 2s ease-in-out infinite;
+}
+.kisan-prompt-arrow {
+  position: absolute;
+  bottom: -6px;
+  right: 20px;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid rgba(34, 197, 94, 0.5);
+}
 
 .kw-app-link {
   display: inline-flex; align-items: center; gap: 6px;
@@ -504,6 +510,10 @@ body.light-theme .kw-speak-btn  { border-color: rgba(22,101,52,.25); color: rgba
     bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     right: calc(12px + env(safe-area-inset-right, 0px));
     width: 52px; height: 52px;
+  }
+  #kisanPromptBox {
+    bottom: calc(85px + env(safe-area-inset-bottom, 0px));
+    right: calc(12px + env(safe-area-inset-right, 0px));
   }
   .kw-lang-grid { grid-template-columns: repeat(3, 1fr); }
   .kw-lang-opt { min-height: 46px; font-size: .65rem; }
@@ -1493,10 +1503,10 @@ body.light-theme .kw-speak-btn  { border-color: rgba(22,101,52,.25); color: rgba
     const promptBox = document.getElementById('kisanPromptBox');
     const overlay = document.getElementById('kisanOverlay');
     if (promptBox && overlay && !overlay.classList.contains('open')) {
-      promptBox.style.opacity = '1';
+      promptBox.classList.add('show');
       // Hide after 5 seconds
       setTimeout(() => {
-        if (promptBox) promptBox.style.opacity = '0';
+        if (promptBox) promptBox.classList.remove('show');
       }, 5000);
     }
   }, 2000);
