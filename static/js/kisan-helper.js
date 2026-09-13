@@ -513,7 +513,7 @@ body.light-theme .kw-speak-btn  { border-color: rgba(22,101,52,.25); color: rgba
     width: 52px; height: 52px;
   }
   #kisanPromptBox {
-    bottom: calc(32px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(90px + env(safe-area-inset-bottom, 0px));
     right: calc(75px + env(safe-area-inset-right, 0px));
   }
   .kisan-prompt-arrow {
