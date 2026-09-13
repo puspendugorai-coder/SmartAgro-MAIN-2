@@ -119,18 +119,19 @@
   position: fixed;
   bottom: calc(95px + env(safe-area-inset-bottom, 0px));
   right: calc(28px + env(safe-area-inset-right, 0px));
-  background: var(--green, #22c55e);
+  background: rgba(34, 197, 94, 0.85);
+  backdrop-filter: blur(4px);
   color: white;
-  padding: 8px 12px;
-  border-radius: 8px;
+  padding: 8px 14px;
+  border-radius: 20px;
   font-size: 0.85rem;
-  font-weight: 600;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  font-weight: 500;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
   z-index: 9998;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.3s;
-  animation: promptBlink 1.5s ease-in-out infinite;
+  transition: opacity 0.5s ease-in-out;
+  animation: promptBlink 2s ease-in-out infinite;
 ">
   Need help? Ask me! 🌿
   <div style="
@@ -141,7 +142,7 @@
     height: 0;
     border-left: 6px solid transparent;
     border-right: 6px solid transparent;
-    border-top: 6px solid var(--green, #22c55e);
+    border-top: 6px solid rgba(34, 197, 94, 0.85);
   "></div>
 </div>`);
 
@@ -559,7 +560,7 @@ body.light-theme .kw-speak-btn  { border-color: rgba(22,101,52,.25); color: rgba
     en:   'Hello Farmer! I am SmartAgro Assistant.\nI am specialized in:\n• Agriculture & Crop disease solutions\n• Irrigation systems & water management\n• SmartAgro App features & step-by-step navigation\n• Mandi prices, MSP & Kisan schemes\n• Toll-Free Helpline on bottom-left (1800-180-1551)',
     hi:   'नमस्ते किसान भाई! मैं SmartAgro सहायक हूं।\nमैं केवल निम्न विषयों में सहायता करता हूं:\n• कृषि, फसल बीमारी और समाधान\n• सिंचाई प्रणाली और जल प्रबंधन\n• SmartAgro ऐप उपयोग और चरण-दर-चरण निर्देश\n• मंडी भाव, MSP और सरकारी योजनाएं\n• स्क्रीन के बाएं तरफ टोल-फ्री हेल्पलाइन (1800-180-1551)',
     bn:   'নমস্কার কৃষক ভাই! আমি SmartAgro সহায়ক।\nআমি সহায়তা করি:\n• কৃষি ও ফসলের রোগ চিকিৎসা\n• সেচ ব্যবস্থা ও জল ব্যবস্থাপনা\n• SmartAgro অ্যাপ ব্যবহারের ধাপসমূহ\n• বাজার মূল্য, MSP ও সরকারি স্কিম\n• নিচে বাঁদিকের হেল্পলাইন (1800-180-1551)',
-    te:   'నమస్కారం! నేను SmartAgro సహాయకుడిని.\nనేను సహాయం చేస్తాను:\n• వ్యవసాయం మరియు పంట వ్యాధులు\n• సాగునీటి వ్యవస్థలు மற்றும் నీటి యాజమాన్యం\n• SmartAgro యాప్ మార్గదర్శకం\n• మార్కెట్ ధరలు మరియు పథకాలు\n• ఎడమ వైపు హెల్ప్‌లైన్ (1800-180-1551)',
+    te:   'నమస్కారం! నేను SmartAgro సహాయకుడిని.\nనేను సహాయం చేస్తాను:\n• వ్యవసాయం మరియు పంట వ్యాధులు\n• సాగునీటి వ్యవస్థలు మరియు నీటి యాజమాన్యం\n• SmartAgro యాప్ మార్గదర్శకం\n• మార్కెట్ ధరలు మరియు పథకాలు\n• ఎడమ వైపు హెల్ప్‌లైన్ (1800-180-1551)',
     mr:   'नमस्कार! मी SmartAgro सहाय्यक आहे.\nमी मदत करतो:\n• शेती आणि पीक रोग\n• सिंचन पद्धती आणि पाणी व्यवस्थापन\n• SmartAgro ॲप मार्गदर्शन\n• बाजारभाव आणि योजना\n• डाव्या बाजूला हेल्पलाइन (1800-180-1551)',
     ta:   'வணக்கம்! நான் SmartAgro உதவியாளர்.\n• விவசாயம் மற்றும் பயிர் நோய்கள்\n• பாசன அமைப்புகள் மற்றும் நீர் மேலாண்மை\n• SmartAgro செயலி வழிகாட்டி\n• சந்தை விலைகள் & திட்டங்கள்\n• இடதுபுற ஹெல்ப்லைன் (1800-180-1551)',
     gu:   'નમસ્તે ખેડૂત મિત્ર! હું SmartAgro સહાયક છું.\n• ખેતી અને પાક રોગ ઉપાયો\n• સિંચાઈ પદ્ધતિઓ અને જળ વ્યવસ્થાપન\n• SmartAgro એપ વાપરવાની રીત\n• બજાર ભાવ અને યોજનાઓ\n• ડાબી બાજુ હેલ્પલાઈન (1800-180-1551)',
@@ -570,7 +571,7 @@ body.light-theme .kw-speak-btn  { border-color: rgba(22,101,52,.25); color: rgba
     as:   'নমস্কাৰ! মই SmartAgro সহায়ক।\n• কৃষি আৰু শস্যৰ ৰোগ\n• জলসিঞ্চন ব্যৱস্থা\n• SmartAgro এপ্প ব্যৱহাৰ\n• বজাৰ দাম আৰু আঁচনি\n• হেল্পলাইন (1800-180-1551)',
     ur:   'السلام علیکم! میں SmartAgro مددگار ہوں۔\n• زراعت اور فصلوں کے بیماریاں\n• آبپاشی کا نظام\n• SmartAgro ایپ کے استعمال کے طریقہ کار\n• منڈی بھاؤ اور اسکیمیں\n• ہیلپ لائن (1800-180-1551)',
     mai:  'प्रणाम! हम SmartAgro किसान सहायक छी। कृषि, सिंचाई, ऐप उपयोग, बाजार भाव आ हेल्पलाइन (1800-180-1551) बारे पुछू।',
-    sat:  'ᱡᱚᱦᱟᱨ! ᱤᱧ SmartAgro ᱜᱚᱲᱚ ᱠᱟᱱᱟᱭ। ᱠᱷᱮᱛ, ᱫᱟ formal/irrigation ᱟᱨ ᱟᱯ key ᱵᱟᱵᱚᱛ ᱯᱩᱪᱷᱟᱣ ᱢᱮ (1800-180-1551) ।',
+    sat:  'ᱡᱚᱦᱟᱨ! ᱤᱧ SmartAgro ᱜᱚᱲᱚ ᱠᱟᱱᱟᱭ। ᱠᱷᱮᱛ, ᱫᱟ formal/irrigation ᱟਰ ᱟᱯ key ᱵᱟᱵᱚᱛ ᱯᱩᱪᱷᱟᱣ ᱢᱮ (1800-180-1551) ।',
     ks:   'اَداب! بہٕ چھُس SmartAgro مددگار۔ کھیتی، آبپاشی، ایپ گائیڈ یا ہیلپ لائن (1800-180-1551) باپت پوچھِو۔',
     ne:   'नमस्ते! म SmartAgro किसान सहायक हुँ। कृषि, सिंचाई, एप प्रयोग र हेल्पलाईन (1800-180-1551) बारे सोध्नुहोस्।',
     sd:   'नमस्ते! मां SmartAgro सहायक आहियां. फसल, सिंचाई, ऐप इस्तेमाल या हेल्पलाइन (1800-180-1551) बारे पुछो.',
@@ -1493,10 +1494,10 @@ body.light-theme .kw-speak-btn  { border-color: rgba(22,101,52,.25); color: rgba
     const overlay = document.getElementById('kisanOverlay');
     if (promptBox && overlay && !overlay.classList.contains('open')) {
       promptBox.style.opacity = '1';
-      // Hide after 4 seconds
+      // Hide after 5 seconds
       setTimeout(() => {
         if (promptBox) promptBox.style.opacity = '0';
-      }, 4000);
+      }, 5000);
     }
   }, 2000);
 
