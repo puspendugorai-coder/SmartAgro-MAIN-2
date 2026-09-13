@@ -173,9 +173,10 @@
   position: fixed;
   bottom: calc(95px + env(safe-area-inset-bottom, 0px));
   right: calc(28px + env(safe-area-inset-right, 0px));
-  background: rgba(34, 197, 94, 0.5);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: rgba(34, 197, 94, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: white;
   padding: 8px 14px;
   border-radius: 20px;
@@ -199,7 +200,7 @@
   height: 0;
   border-left: 6px solid transparent;
   border-right: 6px solid transparent;
-  border-top: 6px solid rgba(34, 197, 94, 0.5);
+  border-top: 6px solid rgba(34, 197, 94, 0.4);
 }
 
 .kw-app-link {
@@ -512,8 +513,18 @@ body.light-theme .kw-speak-btn  { border-color: rgba(22,101,52,.25); color: rgba
     width: 52px; height: 52px;
   }
   #kisanPromptBox {
-    bottom: calc(85px + env(safe-area-inset-bottom, 0px));
-    right: calc(12px + env(safe-area-inset-right, 0px));
+    bottom: calc(25px + env(safe-area-inset-bottom, 0px));
+    right: calc(75px + env(safe-area-inset-right, 0px));
+  }
+  .kisan-prompt-arrow {
+    bottom: auto;
+    top: 50%;
+    right: -6px;
+    transform: translateY(-50%);
+    border-left: 6px solid rgba(34, 197, 94, 0.4);
+    border-top: 6px solid transparent;
+    border-bottom: 6px solid transparent;
+    border-right: none;
   }
   .kw-lang-grid { grid-template-columns: repeat(3, 1fr); }
   .kw-lang-opt { min-height: 46px; font-size: .65rem; }
