@@ -511,7 +511,7 @@ body.light-theme .kw-speak-btn  { border-color: rgba(22,101,52,.25); color: rgba
     bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     right: calc(12px + env(safe-area-inset-right, 0px));
     width: 52px; height: 52px;
-  }
+  } 
   #kisanPromptBox {
     bottom: calc(80px + env(safe-area-inset-bottom, 0px));
     right: calc(75px + env(safe-area-inset-right, 0px));
@@ -669,7 +669,7 @@ body.light-theme .kw-speak-btn  { border-color: rgba(22,101,52,.25); color: rgba
       .replace(/[\u{2600}-\u{27FF}]/gu, '')
       .replace(/[\u{FE00}-\u{FEFF}]/gu, '')
       .replace(/[🌾🌿🌽🍅🎋🫘🌻🧅🥔🌶️🥜☁️🌧️⛅☀️❄️⛈️🌦️🌤️🌫️]/g, '')
-      .replace(/•/g, '')
+      .replace(/•/g, '. ')
       .replace(/[►▶→←↑↓]/g, '')
       .replace(/\*\*/g, '')
       .replace(/\*/g, '')
