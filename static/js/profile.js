@@ -1,4 +1,4 @@
-﻿/* =========================================================================
+/* =========================================================================
    profile.js — SmartAgro User Profile & Onboarding
    -------------------------------------------------------------------------
    On first run, shows a two-step onboarding modal asking for:
@@ -77,7 +77,10 @@ window.SmartAgroProfile = (function () {
       + '<div class="pcp-detail"><i class="fas fa-phone"></i> +91 ' + profile.mobile + '</div>'
       + '<div class="pcp-detail"><i class="fas fa-cake-candles"></i> Age: ' + profile.age + '</div>'
       + '<div class="pcp-detail"><i class="fas fa-flag"></i> ' + profile.country + '</div>'
-      + '<button class="pcp-edit-btn" id="pcpEditBtn"><i class="fas fa-pen"></i> Edit Profile</button>';
+      + '<div class="pcp-actions-row">'
+      + '<button class="pcp-edit-btn" id="pcpEditBtn"><i class="fas fa-pen"></i> Edit Profile</button>'
+      + '<button class="pcp-settings-btn" id="pcpSettingsBtn"><i class="fas fa-gear"></i> Settings</button>'
+      + '</div>';
     document.body.appendChild(popup);
     // Position near badge
     var badge = document.getElementById('userProfileBadge');
@@ -90,6 +93,16 @@ window.SmartAgroProfile = (function () {
       popup.remove();
       showOnboardingModal(true);
     });
+    var settingsBtnInPopup = document.getElementById('pcpSettingsBtn');
+    if (settingsBtnInPopup) {
+      settingsBtnInPopup.addEventListener('click', function() {
+        popup.remove();
+        // Open the settings modal directly via SmartAgroSettings API
+        if (window.SmartAgroSettings && typeof window.SmartAgroSettings.openModal === 'function') {
+          window.SmartAgroSettings.openModal();
+        }
+      });
+    }
     // Close on outside click
     setTimeout(function() {
       document.addEventListener('click', function handler(e) {
