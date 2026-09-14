@@ -1014,7 +1014,6 @@ h1,h2,h3,h4 { font-family: 'Syne', sans-serif; line-height: 1.2; }
     position: relative;
     /* Remove 300ms tap delay on mobile */
     touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
     cursor: pointer;
     /* Ensure the entire area is clickable */
     -webkit-user-select: none;
