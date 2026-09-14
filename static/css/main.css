@@ -922,35 +922,6 @@ h1,h2,h3,h4 { font-family: 'Syne', sans-serif; line-height: 1.2; }
 }
 
 /* ═══════════════════════════════════
-   MOBILE NAVBAR LAYOUT (≤768px)
-   Profile → LEFT | Brand + Controls → RIGHT
-═══════════════════════════════════ */
-@media (max-width: 768px) {
-
-  /* Profile badge: far left */
-  .user-profile-badge {
-    order: -1;
-    display: flex !important;
-    flex-shrink: 0;
-    margin-right: auto;
-  }
-
-  /* Brand moves to the right group */
-  .nav-brand { order: 2; }
-
-  /* Actions (theme + lang) stay far right */
-  .nav-actions { order: 3; flex-shrink: 0; }
-
-  /* Settings gear is hidden — accessible via profile popup */
-  .settings-btn { display: none !important; }
-
-  /* Install button hidden — too cramped */
-  .install-btn { display: none !important; }
-
-  /* Hide profile name text — avatar only */
-  .upb-name { display: none !important; }
-
-/* ═══════════════════════════════════
    MOBILE NAVBAR LAYOUT + BOTTOM NAV
    Brand -> LEFT | Controls+Profile -> RIGHT
 ═══════════════════════════════════ */
@@ -1600,12 +1571,8 @@ body.light-theme .settings-slider { background: #d0e8d0; }
   box-shadow: 0 0 0 4px rgba(74,222,128,0.25);
   transform: scale(1.05);
 }
-.upb-name {
-  font-size: 0.83rem; font-weight: 600; color: var(--text);
-  font-family: 'Inter', sans-serif;
-  max-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-/* upb-name hidden on mobile via the @media (max-width:768px) block above */
+.upb-name { display: none; }
+/* upb-name hidden globally — name is visible in the profile card popup */
 
 /* ── Profile Card Popup ─────────────────────────────── */
 .profile-card-popup {
