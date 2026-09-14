@@ -952,35 +952,37 @@ h1,h2,h3,h4 { font-family: 'Syne', sans-serif; line-height: 1.2; }
 
 /* ═══════════════════════════════════
    MOBILE NAVBAR LAYOUT + BOTTOM NAV
-   Profile -> LEFT | Brand+Controls -> RIGHT
+   Brand -> LEFT | Controls+Profile -> RIGHT
 ═══════════════════════════════════ */
 @media (max-width: 768px) {
 
-  /* ── Mobile Navbar: Profile on the LEFT ── */
+  /* ── Mobile Navbar: Brand LEFT, Profile RIGHT ── */
 
-  /* Make navbar a proper flex row */
   .navbar {
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
   }
 
-  /* Profile badge: far LEFT */
-  .user-profile-badge {
-    order: -1 !important;
-    display: flex !important;
-    flex-shrink: 0;
-    margin-right: auto;
+  /* Brand logo: Left side */
+  .nav-brand {
+    order: 1;
   }
 
-  /* Brand logo: to the RIGHT group */
-  .nav-brand { order: 2; }
-
-  /* Nav actions (theme + lang): far RIGHT */
+  /* Nav actions (theme + lang + profile): Right side */
   .nav-actions {
-    order: 3;
+    order: 2;
     flex-shrink: 0;
-    gap: 6px;
+    gap: 8px;
+    display: flex;
+    align-items: center;
+  }
+
+  /* Profile badge: Make sure it is visible and positioned at the far right */
+  .user-profile-badge {
+    order: 10; /* Highest order within nav-actions to place it rightmost */
+    display: flex !important;
+    flex-shrink: 0;
   }
 
   /* Settings gear hidden on mobile — accessible via profile popup */
