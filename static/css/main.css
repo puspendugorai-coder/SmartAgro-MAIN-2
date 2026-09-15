@@ -870,12 +870,21 @@ h1,h2,h3,h4 { font-family: 'Syne', sans-serif; line-height: 1.2; }
   box-shadow: var(--shadow-lg);
   z-index: 9999;
   opacity: 0;
+  pointer-events: none;            /* ← CRITICAL: invisible toast must not intercept taps */
   gap: 8px;
   font-family: 'Syne', sans-serif;
   font-size: 1.2rem;
   font-weight: 800;
   margin-bottom: 8px;
 }
+/* Toast visible state — restores pointer-events when actually shown */
+.toast.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+.toast.success { border-color: var(--green); }
+.toast.error   { border-color: var(--red); }
+.toast.warning { border-color: var(--amber); }
 .footer p { color: var(--text-2); font-size: 0.85rem; }
 .footer-copy { color: var(--text-3); font-size: 0.75rem; margin-top: 4px; }
 
@@ -910,7 +919,8 @@ h1,h2,h3,h4 { font-family: 'Syne', sans-serif; line-height: 1.2; }
   .install-btn { width: 34px; height: 34px; padding: 0; justify-content: center; }
   .lang-btn { padding: 7px 10px; }
   .theme-toggle { width: 34px; height: 34px; }
-  .toast { bottom: 16px; right: 16px; left: 16px; max-width: none; }
+  /* Raise toast above bottom nav (z-index:10000) and push it clear of the bar */
+  .toast { bottom: 80px; right: 16px; left: 16px; max-width: none; z-index: 10001; }
   .page-hero { padding: calc(var(--nav-h) + 28px) 16px 36px; }
   .page-hero h1 { font-size: clamp(1.6rem, 7vw, 2.4rem); }
   .page-hero p { font-size: 0.9rem; }
@@ -983,20 +993,22 @@ h1,h2,h3,h4 { font-family: 'Syne', sans-serif; line-height: 1.2; }
     display: flex;
     position: fixed;
     bottom: 0; left: 0; right: 0;
-    height: 64px;
-    /* iOS safe-area for phones with home indicator */
+    /* Use min-height so padding-bottom (safe area) adds to height, not subtracts from it */
+    min-height: 64px;
+    /* iOS safe-area padding — sits BELOW the 64px tappable zone */
     padding-bottom: env(safe-area-inset-bottom, 0px);
     background: var(--card, #111a12);
     border-top: 1px solid rgba(74,222,128,0.15);
-    z-index: 9990;
+    /* Higher than toast (9999) so nav is never covered by invisible overlays */
+    z-index: 10000;
     justify-content: space-around;
-    align-items: stretch;        /* ← stretch so anchors fill full height */
+    align-items: stretch;
     box-shadow: 0 -4px 20px rgba(0,0,0,0.4);
   }
 
   #mobileBottomNav a {
     flex: 1;
-    align-self: stretch;         /* ← fill full 64px height */
+    align-self: stretch;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1008,27 +1020,14 @@ h1,h2,h3,h4 { font-family: 'Syne', sans-serif; line-height: 1.2; }
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.4px;
-    padding: 0;
-    height: 100%;                /* ← reliable full-height fill */
-    min-height: 64px;            /* ← fallback for edge cases */
+    /* Vertical padding ensures touch target is min 64px tall */
+    padding: 10px 0;
+    min-height: 64px;
     transition: color 0.2s;
-    position: relative;
-    /* Remove 300ms tap delay on mobile */
+    /* Remove 300ms tap delay */
     touch-action: manipulation;
-    cursor: pointer;
-    /* Ensure the entire area is clickable */
     -webkit-user-select: none;
     user-select: none;
-    /* Expand tap target to full cell via pseudo-element */
-    isolation: isolate;
-  }
-
-  /* Full-cell tap overlay — covers the entire button area */
-  #mobileBottomNav a::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: 0;
   }
 
   #mobileBottomNav a i {
