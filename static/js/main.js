@@ -610,14 +610,19 @@ window.SmartAgroNotifications = {
             if (typeof callback === 'function') callback(false);
             return false;
         }
+        
+        const alreadyGranted = Notification.permission === 'granted';
+        
         try {
             const result = await Notification.requestPermission();
             if (result === 'granted') {
-                showToast('🔔 Device Pop-up Notifications enabled!', 'success');
-                this.sendNotification('🌾 SmartAgro Notifications Activated', {
-                    body: 'You will receive real-time pop-up alerts for severe weather & crop risks in your region.',
-                    tag: 'smartagro-welcome'
-                });
+                if (!alreadyGranted) {
+                    showToast('🔔 Device Pop-up Notifications enabled!', 'success');
+                    this.sendNotification('🌾 SmartAgro Notifications Activated', {
+                        body: 'You will receive real-time pop-up alerts for severe weather & crop risks in your region.',
+                        tag: 'smartagro-welcome'
+                    });
+                }
                 this.hideBanner();
                 if (typeof callback === 'function') callback(true);
                 return true;
