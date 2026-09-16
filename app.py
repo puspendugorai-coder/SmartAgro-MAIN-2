@@ -2420,7 +2420,7 @@ MAX_IMAGE_B64_LEN = 14 * 1024 * 1024  # ~10 MB raw image
 # scout-17b-16e-instruct was deprecated June 17, 2026. Add a second entry here
 # as soon as one exists; no other code needs to change.
 vision_models = [
-    "qwen/qwen3.6-27b",
+    "qwen/qwen3.8-27b",
 ]
 
 
@@ -2453,6 +2453,7 @@ def ai_is_crop_image(image_b64):
             headers=headers, json=body, timeout=8,
         )
         if resp.status_code != 200:
+            logger.warning(f"[Diagnose] ai_is_crop_image HTTP {resp.status_code}: {resp.text[:200]}")
             return True, None
         raw = resp.json()["choices"][0]["message"]["content"].strip()
         parsed = _extract_json_object(raw)
@@ -2485,6 +2486,7 @@ def _run_vision_pass(image_b64, prompt, sys_prompt, model, temperature):
     resp = requests.post("https://api.groq.com/openai/v1/chat/completions",
                           headers=headers, json=body, timeout=45)
     if resp.status_code != 200:
+        logger.warning(f"[Diagnose] Groq HTTP {resp.status_code}: {resp.text[:200]}")
         return None
     raw = resp.json()["choices"][0]["message"]["content"].strip()
     cleaned = re.sub(r"```(?:json)?", "", raw).replace("```", "").strip()
@@ -2514,7 +2516,7 @@ def _run_gemini_pass(image_b64, prompt, sys_prompt):
     }
     try:
         resp = requests.post(url, headers={"Content-Type": "application/json",
-                            "x-goog-api-key": GEMINI_API_KEY}, json=body, timeout=45)
+                            "x-goog-api-key": GEMINI_API_KEY}, json=body, timeout=60)
         if resp.status_code != 200:
             logger.warning(f"[Diagnose] Gemini HTTP {resp.status_code}: {resp.text[:200]}")
             return None
