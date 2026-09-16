@@ -2566,8 +2566,8 @@ def _log_diagnosis(record):
 
 @app.route("/api/diagnose", methods=["POST"])
 def diagnose_crop():
-    if not GROQ_API_KEY:
-        return jsonify({"error": "GROQ_API_KEY not set in .env"}), 500
+    if not GROQ_API_KEY and not GEMINI_API_KEY:
+        return jsonify({"error": "No vision API keys configured. Set GROQ_API_KEY or GEMINI_API_KEY in .env"}), 500
 
     ip = request.remote_addr or "unknown"
     if _is_rate_limited_diagnose(ip):
@@ -2618,53 +2618,55 @@ def diagnose_crop():
     if lang != "en" and lang_name:
         sys_prompt += f" All free-text values must be in {lang_name}."
 
-    # ── Step 2: ensemble / self-consistency passes ──────────────────────
-    # With a single Groq vision model configured (today's reality) this runs
-    # that model twice at different temperatures as a self-consistency
-    # cross-check. When a Gemini key is configured, a genuinely INDEPENDENT
-    # second model is appended to the ensemble — so an agreement between
-    # Groq & Gemini is real cross-model evidence.
-    pass_temperatures = [0.2, 0.6, 0.9]
-    pass_plan = [
-        (i, vision_models[i % len(vision_models)], pass_temperatures[i % len(pass_temperatures)])
-        for i in range(ENSEMBLE_PASSES)
-    ]
-    if GEMINI_API_KEY:
-        pass_plan.append((len(pass_plan), "gemini", 0.3))
-    pass_outcomes = [None] * len(pass_plan)
-
-    def _run_pass(i, model, temp):
-        try:
-            if model == "gemini":
-                return _run_gemini_pass(image_b64, prompt, sys_prompt)
-            return _run_vision_pass(image_b64, prompt, sys_prompt, model, temp)
-        except Exception as e:
-            logger.warning(f"[Diagnose] pass {i} ({model}) failed: {e}")
-            return None
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(pass_plan)) as executor:
-        future_to_pass = {
-            executor.submit(_run_pass, i, model, temp): (i, model)
-            for i, model, temp in pass_plan
-        }
-        for future in concurrent.futures.as_completed(future_to_pass):
-            i, model = future_to_pass[future]
-            parsed = future.result()
-            if parsed and parsed.get("disease"):
-                pass_outcomes[i] = (parsed, model)
-
+    # ── Step 2: Primary Gemini Pass ──────────────────────
     results, models_used = [], []
     gemini_display = f"gemini:{GEMINI_DIAGNOSIS_MODEL}"
-    for outcome in pass_outcomes:
-        if outcome is not None:
-            parsed, model = outcome
-            results.append(parsed)
-            models_used.append(gemini_display if model == "gemini" else model)
+
+    if GEMINI_API_KEY:
+        try:
+            gemini_res = _run_gemini_pass(image_b64, prompt, sys_prompt)
+            if gemini_res and gemini_res.get("disease"):
+                results.append(gemini_res)
+                models_used.append(gemini_display)
+        except Exception as e:
+            logger.warning(f"[Diagnose] Gemini primary pass failed: {e}")
+
+    # ── Step 2b: Secondary Groq Pass (Fallback) ──────────
+    if not results and GROQ_API_KEY:
+        logger.info("[Diagnose] Gemini failed or not configured, falling back to Groq...")
+        pass_temperatures = [0.2, 0.6, 0.9]
+        pass_plan = [
+            (i, vision_models[i % len(vision_models)], pass_temperatures[i % len(pass_temperatures)])
+            for i in range(ENSEMBLE_PASSES)
+        ]
+        pass_outcomes = [None] * len(pass_plan)
+
+        def _run_pass(i, model, temp):
+            try:
+                return _run_vision_pass(image_b64, prompt, sys_prompt, model, temp)
+            except Exception as e:
+                logger.warning(f"[Diagnose] pass {i} ({model}) failed: {e}")
+                return None
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(pass_plan)) as executor:
+            future_to_pass = {
+                executor.submit(_run_pass, i, model, temp): (i, model)
+                for i, model, temp in pass_plan
+            }
+            for future in concurrent.futures.as_completed(future_to_pass):
+                i, model = future_to_pass[future]
+                parsed = future.result()
+                if parsed and parsed.get("disease"):
+                    pass_outcomes[i] = (parsed, model)
+
+        for outcome in pass_outcomes:
+            if outcome is not None:
+                parsed, model = outcome
+                results.append(parsed)
+                models_used.append(model)
 
     if not results:
-        if not GEMINI_API_KEY:
-            return jsonify({"error": "GEMINI_API_KEY not set in .env"}), 500
-        return jsonify({"error": "All vision models failed. Check your GROQ_API_KEY in .env"}), 500
+        return jsonify({"error": "All vision models failed. Check your API keys in .env"}), 500
 
     # ── Step 3: merge / vote across passes ───────────────────────────────
     primary = max(results, key=lambda r: r.get("confidence", 0))
