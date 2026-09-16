@@ -289,10 +289,46 @@ function processImageFile(file) {
     }
     const reader = new FileReader();
     reader.onload = function (ev) {
-        const dataUrl = ev.target.result;
-        currentImageDataUrl = dataUrl;
-        currentImageBase64 = dataUrl.split(',')[1];
-        showPreview(dataUrl);
+        const originalDataUrl = ev.target.result;
+        
+        // Resize image to max 1024px to prevent huge network payloads
+        // and severely delayed AI analysis.
+        const img = new Image();
+        img.onload = () => {
+            const maxDim = 1024;
+            let w = img.width;
+            let h = img.height;
+            
+            if (w > maxDim || h > maxDim) {
+                if (w > h) {
+                    h = Math.round((h * maxDim) / w);
+                    w = maxDim;
+                } else {
+                    w = Math.round((w * maxDim) / h);
+                    h = maxDim;
+                }
+            }
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            
+            // Re-compress to JPEG at 85% quality
+            const resizedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+            
+            currentImageDataUrl = resizedDataUrl;
+            currentImageBase64 = resizedDataUrl.split(',')[1];
+            showPreview(resizedDataUrl);
+        };
+        img.onerror = () => {
+            // Fallback if canvas resize fails
+            currentImageDataUrl = originalDataUrl;
+            currentImageBase64 = originalDataUrl.split(',')[1];
+            showPreview(originalDataUrl);
+        };
+        img.src = originalDataUrl;
     };
     reader.readAsDataURL(file);
 }
