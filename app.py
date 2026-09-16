@@ -2620,22 +2620,10 @@ def diagnose_crop():
     if lang != "en" and lang_name:
         sys_prompt += f" All free-text values must be in {lang_name}."
 
-    # ── Step 2: Primary Gemini Pass ──────────────────────
+    # ── Step 2: Primary Groq Pass ──────────────────────
     results, models_used = [], []
-    gemini_display = f"gemini:{GEMINI_DIAGNOSIS_MODEL}"
 
-    if GEMINI_API_KEY:
-        try:
-            gemini_res = _run_gemini_pass(image_b64, prompt, sys_prompt)
-            if gemini_res and gemini_res.get("disease"):
-                results.append(gemini_res)
-                models_used.append(gemini_display)
-        except Exception as e:
-            logger.warning(f"[Diagnose] Gemini primary pass failed: {e}")
-
-    # ── Step 2b: Secondary Groq Pass (Fallback) ──────────
-    if not results and GROQ_API_KEY:
-        logger.info("[Diagnose] Gemini failed or not configured, falling back to Groq...")
+    if GROQ_API_KEY:
         pass_temperatures = [0.2, 0.6, 0.9]
         pass_plan = [
             (i, vision_models[i % len(vision_models)], pass_temperatures[i % len(pass_temperatures)])
@@ -2666,6 +2654,18 @@ def diagnose_crop():
                 parsed, model = outcome
                 results.append(parsed)
                 models_used.append(model)
+
+    # ── Step 2b: Secondary Gemini Pass (Fallback) ──────────
+    gemini_display = f"gemini:{GEMINI_DIAGNOSIS_MODEL}"
+    if not results and GEMINI_API_KEY:
+        logger.info("[Diagnose] Groq failed or not configured, falling back to Gemini...")
+        try:
+            gemini_res = _run_gemini_pass(image_b64, prompt, sys_prompt)
+            if gemini_res and gemini_res.get("disease"):
+                results.append(gemini_res)
+                models_used.append(gemini_display)
+        except Exception as e:
+            logger.warning(f"[Diagnose] Gemini fallback pass failed: {e}")
 
     if not results:
         return jsonify({"error": "All vision models failed. Check your API keys in .env"}), 500
