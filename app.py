@@ -3348,48 +3348,46 @@ def _build_translate_prompt(terms_chunk, lang_name, domain_note, lang_code=""):
 
 def _translate_terms_chunk(terms_chunk, lang_name, domain_note, lang_code=""):
     prompt = _build_translate_prompt(terms_chunk, lang_name, domain_note, lang_code)
-    headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+    sys_prompt = f"You are an expert Indian regional language translator. You MUST respond with valid JSON only, no other text. Translate everything to {lang_name} ({lang_code}) using its correct native script."
     max_tokens = min(4096, 300 + len(terms_chunk) * 150)
 
-    last_error = None
-    for model in TRANSLATE_MODELS:
-        body = {
-            "model": model,
-            "messages": [
-                {"role": "system", "content": f"You are an expert Indian regional language translator. You MUST respond with valid JSON only, no other text. Translate everything to {lang_name} ({lang_code}) using its correct native script."},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.1,
-            "max_tokens": max_tokens,
-            "stream": False,
-            "response_format": {"type": "json_object"},
-        }
-        try:
-            resp = _post_to_groq(body, headers)
-            if resp.status_code == 400:
-                body.pop("response_format", None)
-                resp = _post_to_groq(body, headers)
-            if resp.status_code != 200:
-                last_error = f"HTTP {resp.status_code}: {resp.text[:150]}"
-                continue
+    if not GEMINI_API_KEY:
+        logger.warning(f"[Translate] GEMINI_API_KEY not set")
+        return {term: term for term in terms_chunk}
 
-            raw = resp.json()["choices"][0]["message"]["content"].strip()
-            translations = _extract_json_object(raw)
-            if not translations:
-                last_error = "No JSON found/parsable in response"
-                continue
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent"
+    body = {
+        "system_instruction": {"parts": [{"text": sys_prompt}]},
+        "contents": [{
+            "role": "user",
+            "parts": [{"text": prompt}],
+        }],
+        "generationConfig": {
+            "temperature": 0.1, 
+            "maxOutputTokens": max_tokens,
+            "responseMimeType": "application/json"
+        },
+    }
+    
+    try:
+        resp = requests.post(url, headers={"Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY}, json=body, timeout=45)
+        if resp.status_code != 200:
+            logger.warning(f"[Translate] Gemini HTTP {resp.status_code}: {resp.text[:150]}")
+            return {term: term for term in terms_chunk}
+            
+        raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        translations = _extract_json_object(raw)
+        if not translations:
+            logger.warning("[Translate] No JSON found/parsable in response")
+            return {term: term for term in terms_chunk}
 
-            for term in terms_chunk:
-                if term not in translations or not translations[term]:
-                    translations[term] = term
-            return translations
-
-        except Exception as e:
-            last_error = str(e)
-            continue
-
-    logger.warning(f"[Translate] chunk of {len(terms_chunk)} terms to {lang_name} failed on all models: {last_error}")
-    return {term: term for term in terms_chunk}
+        for term in terms_chunk:
+            if term not in translations or not translations[term]:
+                translations[term] = term
+        return translations
+    except Exception as e:
+        logger.warning(f"[Translate] Gemini exception: {e}")
+        return {term: term for term in terms_chunk}
 
 
 def _translate_terms(terms, lang_name, domain_note, cache_key, cache_dict, lang_code=""):
