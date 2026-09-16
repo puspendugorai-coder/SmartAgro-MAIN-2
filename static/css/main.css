@@ -885,8 +885,25 @@ h1,h2,h3,h4 { font-family: 'Syne', sans-serif; line-height: 1.2; }
 .toast.success { border-color: var(--green); }
 .toast.error   { border-color: var(--red); }
 .toast.warning { border-color: var(--amber); }
+.footer {
+  text-align: center;
+}
 .footer p { color: var(--text-2); font-size: 0.85rem; }
 .footer-copy { color: var(--text-3); font-size: 0.75rem; margin-top: 4px; }
+.footer-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 1.1rem;
+  margin-bottom: 8px;
+}
+.disclaimer-container {
+  text-align: center;
+  margin: 0 auto 16px auto;
+  max-width: 800px;
+}
 
 /* ── Responsive ──────────────────────────────────────── */
 @media (max-width: 900px) {
