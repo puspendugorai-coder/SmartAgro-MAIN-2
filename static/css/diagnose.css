@@ -660,6 +660,7 @@
   align-items: center;
   gap: 10px;
   padding: 8px;
+  flex-shrink: 0;
 }
 
 .diag-hist-card:hover {
