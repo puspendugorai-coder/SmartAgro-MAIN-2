@@ -2514,21 +2514,30 @@ def _run_gemini_pass(image_b64, prompt, sys_prompt):
         "generationConfig": {"temperature": 0.3, "maxOutputTokens": 3000,
                              "responseMimeType": "application/json"},
     }
-    try:
-        resp = requests.post(url, headers={"Content-Type": "application/json",
-                            "x-goog-api-key": GEMINI_API_KEY}, json=body, timeout=60)
-        if resp.status_code != 200:
-            logger.warning(f"[Diagnose] Gemini HTTP {resp.status_code}: {resp.text[:200]}")
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            resp = requests.post(url, headers={"Content-Type": "application/json",
+                                "x-goog-api-key": GEMINI_API_KEY}, json=body, timeout=60)
+            if resp.status_code == 200:
+                raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+                cleaned = re.sub(r"```(?:json)?", "", raw).replace("```", "").strip()
+                match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+                if not match:
+                    return None
+                return json.loads(match.group())
+            
+            logger.warning(f"[Diagnose] Gemini HTTP {resp.status_code} (attempt {attempt+1}/{max_retries}): {resp.text[:200]}")
+            if resp.status_code in [429, 500, 502, 503, 504] and attempt < max_retries - 1:
+                time.sleep(2 ** attempt)
+                continue
             return None
-        raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-        cleaned = re.sub(r"```(?:json)?", "", raw).replace("```", "").strip()
-        match = re.search(r"\{.*\}", cleaned, re.DOTALL)
-        if not match:
+        except Exception as e:
+            logger.warning(f"[Diagnose] Gemini exception (attempt {attempt+1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                time.sleep(2 ** attempt)
+                continue
             return None
-        return json.loads(match.group())
-    except Exception as e:
-        logger.warning(f"[Diagnose] Gemini exception: {e}")
-        return None
 
 
 def _diseases_agree(name_a, name_b):
