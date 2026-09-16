@@ -57,10 +57,10 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1)
 # The diagnose route already checks image size manually, but every other
 # JSON-accepting route (chat, alerts, translate-*) had no cap at all, so an
 # oversized POST body could tie up memory/CPU on our constrained Render
-# instance. 12 MB covers the largest legitimate payload (diagnose image
+# instance. 16 MB covers the largest legitimate payload (diagnose image
 # base64, ~10MB cap) with headroom, and rejects anything bigger before Flask
 # even parses it.
-app.config["MAX_CONTENT_LENGTH"] = 12 * 1024 * 1024  # 12 MB
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB
 
 
 @app.errorhandler(413)
