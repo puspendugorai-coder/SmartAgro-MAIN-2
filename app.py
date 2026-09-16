@@ -12,12 +12,14 @@ from flask import send_from_directory
 # HTTP stack to only use IPv4, matching what the browser effectively does.
 try:
     import socket
+    import sys
     import urllib3.util.connection as urllib3_conn
 
     def _allowed_gai_family():
         return socket.AF_INET  # IPv4 only
 
-    urllib3_conn.allowed_gai_family = _allowed_gai_family
+    if sys.platform == "win32":
+        urllib3_conn.allowed_gai_family = _allowed_gai_family
 except Exception as _e:
     logger.info(f"[AgroSmart] Could not force IPv4 (non-fatal): {_e}")
 import os
