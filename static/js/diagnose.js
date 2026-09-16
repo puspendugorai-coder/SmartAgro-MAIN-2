@@ -1094,15 +1094,14 @@ async function shareDiagnoseResult() {
     if (navigator.share) {
         if (imageFile && navigator.canShare && navigator.canShare({ files: [imageFile] })) {
             try {
-                // We intentionally omit 'text' here because on Desktop OS (like Windows),
-                // sharing both text and a file causes WhatsApp to split them into two separate
-                // messages, often sending the text first. By sharing only the file and copying
-                // the text to clipboard, the user can just paste the text into the WhatsApp caption box.
+                // Include both text and image file in the share payload
                 await navigator.share({
+                    title: 'SmartAgro Diagnosis',
+                    text: photoCaption,
                     files: [imageFile]
                 });
                 if (typeof showToast === 'function') {
-                    showToast(tr('Image shared! Paste the text (already copied) as its caption.'), 'success', 4500);
+                    showToast(tr('Diagnosis shared successfully!'), 'success', 4500);
                 }
                 return;
             } catch(e) {
