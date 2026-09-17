@@ -137,7 +137,7 @@
   background: linear-gradient(135deg, #15803d, #22c55e);
   box-shadow: 0 4px 24px rgba(34,197,94,.45);
   display: flex; align-items: center; justify-content: center;
-  cursor: pointer; z-index: 9999; text-decoration: none;
+  cursor: pointer; z-index: 10001; text-decoration: none;
   transition: transform .2s, box-shadow .2s;
   -webkit-tap-highlight-color: transparent; touch-action: manipulation;
 }
@@ -153,7 +153,7 @@
   background: linear-gradient(135deg, #166534, #22c55e);
   box-shadow: 0 4px 24px rgba(74,222,128,.45);
   display: flex; align-items: center; justify-content: center;
-  cursor: pointer; z-index: 9999;
+  cursor: pointer; z-index: 10002;
   transition: transform .2s, box-shadow .2s;
   -webkit-tap-highlight-color: transparent; touch-action: manipulation;
 }
@@ -183,7 +183,7 @@
   font-size: 0.85rem;
   font-weight: 500;
   box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-  z-index: 10000;
+  z-index: 10001;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.5s ease-in-out;
@@ -219,7 +219,7 @@
 }
 
 #kisanOverlay {
-  position: fixed; inset: 0; z-index: 9998;
+  position: fixed; inset: 0; z-index: 10001;
   background: rgba(0,0,0,.65); backdrop-filter: blur(4px);
   display: flex; align-items: flex-end; justify-content: center;
   opacity: 0; transition: opacity .28s ease;
@@ -503,15 +503,18 @@ body.light-theme .kw-speak-btn  { border-color: rgba(22,101,52,.25); color: rgba
 @media (max-width: 600px) {
   #kisanWindow { border-radius: 16px 16px 0 0; height: min(94vh, 100dvh); }
   #kisanHelpline {
-    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(80px + env(safe-area-inset-bottom, 0px));
     left: calc(12px + env(safe-area-inset-left, 0px));
     width: 52px; height: 52px;
   }
   #kisanToggleBtn {
-    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(80px + env(safe-area-inset-bottom, 0px));
     right: calc(12px + env(safe-area-inset-right, 0px));
     width: 52px; height: 52px;
-  } 
+  }
+  #kisanToggleBtn.chat-open {
+    display: none !important;
+  }
   #kisanPromptBox {
     bottom: calc(80px + env(safe-area-inset-bottom, 0px));
     right: calc(75px + env(safe-area-inset-right, 0px));
