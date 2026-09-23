@@ -71,6 +71,7 @@ window.SmartAgroProfile = (function () {
     var popup = document.createElement('div');
     popup.id = 'profileCardPopup';
     popup.className = 'profile-card-popup';
+    var alreadyInstalled = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
     popup.innerHTML =
       '<div class="pcp-avatar">' + (profile.name ? profile.name.trim().split(' ').map(function(w){return w[0];}).slice(0,2).join('').toUpperCase() : '?') + '</div>'
       + '<div class="pcp-name">' + profile.name + '</div>'
@@ -78,8 +79,12 @@ window.SmartAgroProfile = (function () {
       + (profile.age    ? '<div class="pcp-detail"><i class="fas fa-cake-candles"></i> Age: ' + profile.age + '</div>' : '')
       + (profile.country ? '<div class="pcp-detail"><i class="fas fa-flag"></i> ' + profile.country + '</div>' : '')
       + '<div class="pcp-actions-row">'
-      + '<button class="pcp-edit-btn" id="pcpEditBtn"><i class="fas fa-pen"></i> Edit Profile</button>'
+      + '<button class="pcp-edit-btn" id="pcpEditBtn"><i class="fas fa-pen"></i> Edit</button>'
       + '<button class="pcp-settings-btn" id="pcpSettingsBtn"><i class="fas fa-gear"></i> Settings</button>'
+      + '</div>'
+      + '<div class="pcp-actions-row" style="margin-top:6px">'
+      + (alreadyInstalled ? '' : '<button class="pcp-install-btn" id="pcpInstallBtn"><i class="fas fa-download"></i> Install App</button>')
+      + '<button class="pcp-logout-btn" id="pcpLogoutBtn"><i class="fas fa-right-from-bracket"></i> Logout</button>'
       + '</div>';
     document.body.appendChild(popup);
     // Position near badge
@@ -97,10 +102,32 @@ window.SmartAgroProfile = (function () {
     if (settingsBtnInPopup) {
       settingsBtnInPopup.addEventListener('click', function() {
         popup.remove();
-        // Open the settings modal directly via SmartAgroSettings API
         if (window.SmartAgroSettings && typeof window.SmartAgroSettings.openModal === 'function') {
           window.SmartAgroSettings.openModal();
         }
+      });
+    }
+    // Install App from profile popup (works on mobile where navbar install btn is hidden)
+    var installBtnInPopup = document.getElementById('pcpInstallBtn');
+    if (installBtnInPopup) {
+      installBtnInPopup.addEventListener('click', function() {
+        popup.remove();
+        var installBtn = document.getElementById('installBtn');
+        if (installBtn) {
+          installBtn.click(); // delegate to main.js install logic
+        }
+      });
+    }
+    // Logout: clear profile from localStorage and restart onboarding
+    var logoutBtnInPopup = document.getElementById('pcpLogoutBtn');
+    if (logoutBtnInPopup) {
+      logoutBtnInPopup.addEventListener('click', function() {
+        if (!confirm('Are you sure you want to log out? Your profile details will be removed.')) return;
+        popup.remove();
+        try { localStorage.removeItem(PROFILE_KEY); } catch(e) {}
+        var badge = document.getElementById('userProfileBadge');
+        if (badge) { badge.innerHTML = ''; badge.style.display = 'none'; }
+        setTimeout(function() { showOnboardingModal(false); }, 200);
       });
     }
     // Close on outside click
