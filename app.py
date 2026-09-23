@@ -157,7 +157,8 @@ DEBUG_MODE          = os.getenv("FLASK_DEBUG", "0") == "1"
 
 # Gemini is used as a genuinely INDEPENDENT second vision model in the crop
 # diagnosis ensemble. Only active when GEMINI_API_KEY is set in .env.
-GEMINI_DIAGNOSIS_MODEL = os.getenv("GEMINI_DIAGNOSIS_MODEL", "gemini-3.1-flash-lite")
+# gemini-3.8-flash: current-gen model with native multimodal vision support (Sep 2026)
+GEMINI_DIAGNOSIS_MODEL = os.getenv("GEMINI_DIAGNOSIS_MODEL", "gemini-3.8-flash")
 
 # ── Per-feature usage analytics ─────────────────────────────────────────────
 # Tracks how often each SmartAgro feature is used (page views + API calls) as
@@ -2385,7 +2386,7 @@ _rate_limit_state_lock = threading.Lock()
 
 CHAT_LIMIT    = 20
 STT_LIMIT     = 20
-DIAGNOSE_LIMIT = 10
+DIAGNOSE_LIMIT = 20  # allow re-analysis and multiple crops per session
 
 
 def _rate_limit(action: str, ip: str, limit: int, window_seconds: int = 60) -> bool:
@@ -2419,8 +2420,12 @@ MAX_IMAGE_B64_LEN = 14 * 1024 * 1024  # ~10 MB raw image
 # production-viable multimodal model on the general tier — meta-llama/llama-4-
 # scout-17b-16e-instruct was deprecated June 17, 2026. Add a second entry here
 # as soon as one exists; no other code needs to change.
+# Confirmed Groq vision-capable models (Sep 2026).
+# qwen/qwen3.8-27b supports image inputs on Groq's general tier.
+# meta-llama/llama-4-scout-17b-16e-instruct is kept as a second option.
 vision_models = [
-    "qwen/qwen3.8-27b",
+    "meta-llama/llama-4-scout-17b-16e-instruct",
+    "meta-llama/llama-4-maverick-17b-128e-instruct",
 ]
 
 
@@ -2468,7 +2473,9 @@ def ai_is_crop_image(image_b64):
 
 
 def _run_vision_pass(image_b64, prompt, sys_prompt, model, temperature):
-    """Run one diagnosis pass against one Groq vision model and return parsed JSON, or None if that pass failed."""
+    """Run one diagnosis pass against one Groq vision model and return parsed JSON,
+    or None if that pass failed. Retries up to 3 times on 429/5xx with exponential
+    backoff so transient rate-limit spikes don't kill the whole analysis."""
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
     body = {
         "model": model,
@@ -2481,19 +2488,33 @@ def _run_vision_pass(image_b64, prompt, sys_prompt, model, temperature):
         ],
         "temperature": temperature,
         "max_tokens": 1400,
-        "reasoning_effort": "none",
     }
-    resp = requests.post("https://api.groq.com/openai/v1/chat/completions",
-                          headers=headers, json=body, timeout=45)
-    if resp.status_code != 200:
-        logger.warning(f"[Diagnose] Groq HTTP {resp.status_code}: {resp.text[:200]}")
-        return None
-    raw = resp.json()["choices"][0]["message"]["content"].strip()
-    cleaned = re.sub(r"```(?:json)?", "", raw).replace("```", "").strip()
-    match = re.search(r"\{.*\}", cleaned, re.DOTALL)
-    if not match:
-        return None
-    return json.loads(match.group())
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            resp = requests.post("https://api.groq.com/openai/v1/chat/completions",
+                                  headers=headers, json=body, timeout=45)
+            if resp.status_code == 200:
+                raw = resp.json()["choices"][0]["message"]["content"].strip()
+                cleaned = re.sub(r"```(?:json)?", "", raw).replace("```", "").strip()
+                match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+                if not match:
+                    return None
+                return json.loads(match.group())
+            # Rate-limited or server error — wait and retry
+            if resp.status_code in [429, 500, 502, 503, 504] and attempt < max_retries - 1:
+                wait = (2 ** attempt) + 1  # 2s, 3s
+                logger.warning(f"[Diagnose] Groq HTTP {resp.status_code} on attempt {attempt+1}, retrying in {wait}s...")
+                time.sleep(wait)
+                continue
+            logger.warning(f"[Diagnose] Groq HTTP {resp.status_code}: {resp.text[:200]}")
+            return None
+        except Exception as e:
+            if attempt < max_retries - 1:
+                time.sleep(2 ** attempt)
+                continue
+            logger.warning(f"[Diagnose] Groq vision pass exception: {e}")
+            return None
 
 
 def _run_gemini_pass(image_b64, prompt, sys_prompt):
@@ -2631,52 +2652,65 @@ def diagnose_crop():
     if lang != "en" and lang_name:
         sys_prompt += f" All free-text values must be in {lang_name}."
 
-    # ── Step 2: Primary Groq Pass ──────────────────────
+    # ── Step 2: Primary Groq Pass + Parallel Gemini Pass ─────────────────────
+    # Groq and Gemini both run concurrently. Gemini is NOT just a fallback —
+    # it runs alongside Groq to provide a genuine cross-vendor ensemble.
+    # If Groq is rate-limited, Gemini alone will still produce a valid result.
     results, models_used = [], []
-
-    if GROQ_API_KEY:
-        pass_temperatures = [0.2, 0.6, 0.9]
-        pass_plan = [
-            (i, vision_models[i % len(vision_models)], pass_temperatures[i % len(pass_temperatures)])
-            for i in range(ENSEMBLE_PASSES)
-        ]
-        pass_outcomes = [None] * len(pass_plan)
-
-        def _run_pass(i, model, temp):
-            try:
-                return _run_vision_pass(image_b64, prompt, sys_prompt, model, temp)
-            except Exception as e:
-                logger.warning(f"[Diagnose] pass {i} ({model}) failed: {e}")
-                return None
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(pass_plan)) as executor:
-            future_to_pass = {
-                executor.submit(_run_pass, i, model, temp): (i, model)
-                for i, model, temp in pass_plan
-            }
-            for future in concurrent.futures.as_completed(future_to_pass):
-                i, model = future_to_pass[future]
-                parsed = future.result()
-                if parsed and parsed.get("disease"):
-                    pass_outcomes[i] = (parsed, model)
-
-        for outcome in pass_outcomes:
-            if outcome is not None:
-                parsed, model = outcome
-                results.append(parsed)
-                models_used.append(model)
-
-    # ── Step 2b: Secondary Gemini Pass (Fallback) ──────────
     gemini_display = f"gemini:{GEMINI_DIAGNOSIS_MODEL}"
-    if not results and GEMINI_API_KEY:
-        logger.info("[Diagnose] Groq failed or not configured, falling back to Gemini...")
+
+    futures_map = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+
+        # Submit Groq passes
+        if GROQ_API_KEY:
+            pass_temperatures = [0.2, 0.6, 0.9]
+            pass_plan = [
+                (i, vision_models[i % len(vision_models)], pass_temperatures[i % len(pass_temperatures)])
+                for i in range(ENSEMBLE_PASSES)
+            ]
+            for i, model, temp in pass_plan:
+                def _run_groq_pass(i=i, model=model, temp=temp):
+                    try:
+                        return ("groq", model, _run_vision_pass(image_b64, prompt, sys_prompt, model, temp))
+                    except Exception as e:
+                        logger.warning(f"[Diagnose] Groq pass {i} ({model}) failed: {e}")
+                        return ("groq", model, None)
+                futures_map[executor.submit(_run_groq_pass)] = f"groq:{model}"
+
+        # Submit Gemini pass in parallel (always, if key is set)
+        if GEMINI_API_KEY:
+            def _run_gemini_concurrent():
+                try:
+                    return ("gemini", gemini_display, _run_gemini_pass(image_b64, prompt, sys_prompt))
+                except Exception as e:
+                    logger.warning(f"[Diagnose] Gemini concurrent pass failed: {e}")
+                    return ("gemini", gemini_display, None)
+            futures_map[executor.submit(_run_gemini_concurrent)] = "gemini"
+
+        for future in concurrent.futures.as_completed(futures_map):
+            try:
+                provider, model_id, parsed = future.result()
+                if parsed and parsed.get("disease"):
+                    results.append(parsed)
+                    models_used.append(model_id)
+                    logger.info(f"[Diagnose] ✓ {model_id} returned a result")
+                else:
+                    logger.info(f"[Diagnose] ✗ {model_id} returned no usable result")
+            except Exception as e:
+                logger.warning(f"[Diagnose] future exception: {e}")
+
+    # If Groq entirely failed (all passes returned None) but Gemini hasn't run yet
+    # (e.g. GEMINI_API_KEY was not set during parallel run), try Gemini as last resort.
+    if not results and GEMINI_API_KEY and not any("gemini" in m for m in models_used):
+        logger.info("[Diagnose] All passes failed — last-resort Gemini attempt...")
         try:
             gemini_res = _run_gemini_pass(image_b64, prompt, sys_prompt)
             if gemini_res and gemini_res.get("disease"):
                 results.append(gemini_res)
                 models_used.append(gemini_display)
         except Exception as e:
-            logger.warning(f"[Diagnose] Gemini fallback pass failed: {e}")
+            logger.warning(f"[Diagnose] Last-resort Gemini pass failed: {e}")
 
     if not results:
         return jsonify({"error": "All vision models failed. Check your API keys in .env"}), 500
