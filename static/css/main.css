@@ -1795,6 +1795,27 @@ body.light-theme .profile-card-popup { background: #fff; }
 }
 .ob-btn-submit:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(74,222,128,0.4); }
 
+/* Skip button — ghost/muted so Next is the primary CTA */
+.ob-btn-skip {
+  padding: 13px 16px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-3);
+  border-radius: var(--radius-sm);
+  font-weight: 500; font-size: 0.85rem; cursor: pointer;
+  display: flex; align-items: center; gap: 6px;
+  transition: var(--trans); font-family: 'Inter', sans-serif;
+  flex-shrink: 0;
+}
+.ob-btn-skip:hover { border-color: var(--text-2); color: var(--text-2); }
+/* "Next" button takes remaining space when Skip is present */
+.ob-btns-row .ob-btn-next { flex: 1; margin-top: 0; }
+/* Optional label badge */
+.ob-optional {
+  font-size: 0.7rem; font-weight: 400;
+  color: var(--text-3); margin-left: 4px;
+}
+
 body.light-theme .onboarding-panel { background: #fff; }
 body.light-theme .ob-input { background: #f4faf4; }
 body.light-theme .ob-phone-prefix { background: rgba(22,101,52,0.1); }
