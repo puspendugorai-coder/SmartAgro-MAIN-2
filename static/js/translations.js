@@ -70,7 +70,7 @@ const T = {
         analyzing_safe_windows: 'Analyzing safe windows...',
         month_risk_outlook: "Next 15-Day Risk Outlook",
         month_risk_outlook_sub: 'Real forecast trend for the coming days',
-        analyzing_30day_trends: 'Analyzing 30-day trends...',
+        analyzing_30day_trends: 'Analyzing 15-day trends...',
         seasonal_alerts_title: 'Seasonal Alerts',
         seasonal_alerts_sub: 'Overall advisories for the current season',
         generating_seasonal_advisory: 'Generating seasonal advisory...',
