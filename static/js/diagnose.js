@@ -518,17 +518,22 @@ async function analyzeImage() {
         }
 
         if (data.not_a_crop_image) {
-            showToast(data.error || tr("That doesn't look like a plant photo."), 'error');
+            // Show the rejection in the results panel — no additional toast popup
             if (panel) panel.innerHTML = `
               <div class="results-placeholder">
                 <div class="placeholder-icon" style="opacity:1;color:var(--amber)">
-                  <i class="fas fa-image"></i>
+                  <i class="fas fa-image-slash" style="font-size:3rem"></i>
                 </div>
-                <h3 style="color:var(--amber)">${tr('Not a Crop Photo')}</h3>
-                <p>${data.error || tr("This doesn't look like a plant or crop photo. Please upload a clear photo of a leaf, stem, fruit, or affected part of your crop.")}</p>
-                <button class="btn-secondary" style="margin-top:16px" onclick="analyzeImage()">
-                  <i class="fas fa-rotate"></i> ${tr('Try Again')}
-                </button>
+                <h3 style="color:var(--amber);margin-bottom:8px">${tr('Not a Crop Photo')}</h3>
+                <p style="max-width:340px;margin:0 auto 20px">${data.error || tr("This doesn't look like a plant or crop photo. Please upload a clear photo of a leaf, stem, fruit, or affected part of your crop.")}</p>
+                <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+                  <button class="btn-secondary" onclick="clearImage()">
+                    <i class="fas fa-upload"></i> ${tr('Upload Different Image')}
+                  </button>
+                  <button class="btn-primary" onclick="openCamera()">
+                    <i class="fas fa-camera"></i> ${tr('Take Photo')}
+                  </button>
+                </div>
               </div>`;
             return;
         }
