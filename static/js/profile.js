@@ -74,9 +74,9 @@ window.SmartAgroProfile = (function () {
     popup.innerHTML =
       '<div class="pcp-avatar">' + (profile.name ? profile.name.trim().split(' ').map(function(w){return w[0];}).slice(0,2).join('').toUpperCase() : '?') + '</div>'
       + '<div class="pcp-name">' + profile.name + '</div>'
-      + '<div class="pcp-detail"><i class="fas fa-phone"></i> +91 ' + profile.mobile + '</div>'
-      + '<div class="pcp-detail"><i class="fas fa-cake-candles"></i> Age: ' + profile.age + '</div>'
-      + '<div class="pcp-detail"><i class="fas fa-flag"></i> ' + profile.country + '</div>'
+      + (profile.mobile ? '<div class="pcp-detail"><i class="fas fa-phone"></i> +91 ' + profile.mobile + '</div>' : '')
+      + (profile.age    ? '<div class="pcp-detail"><i class="fas fa-cake-candles"></i> Age: ' + profile.age + '</div>' : '')
+      + (profile.country ? '<div class="pcp-detail"><i class="fas fa-flag"></i> ' + profile.country + '</div>' : '')
       + '<div class="pcp-actions-row">'
       + '<button class="pcp-edit-btn" id="pcpEditBtn"><i class="fas fa-pen"></i> Edit Profile</button>'
       + '<button class="pcp-settings-btn" id="pcpSettingsBtn"><i class="fas fa-gear"></i> Settings</button>'
@@ -128,31 +128,34 @@ window.SmartAgroProfile = (function () {
       + '<div class="onboarding-header">'
       + '<div class="onboarding-logo"><i class="fas fa-seedling"></i></div>'
       + '<h2 class="onboarding-title">Welcome to <span>Smart<span class="ob-accent">Agro</span></span></h2>'
-      + '<p class="onboarding-sub">' + (isEdit ? 'Update your profile' : 'Built for India\'s farmers. Let\'s set up your profile.') + '</p>'
+      + '<p class="onboarding-sub">' + (isEdit ? 'Update your profile' : 'Built for India\'s farmers. Let\'s get you started.') + '</p>'
       + '</div>'
-      // Step 1
+      // Step 1 — Name (required) + Age (optional)
       + '<div class="ob-step" id="obStep1">'
-      + '<div class="ob-step-title"><span class="ob-step-num">1</span> Personal Details</div>'
+      + '<div class="ob-step-title"><span class="ob-step-num">1</span> Your Name <span style="font-size:0.7rem;color:var(--text-3);font-weight:400;margin-left:4px">(only name is required)</span></div>'
       + '<div class="ob-field">'
-      + '<label class="ob-label"><i class="fas fa-user"></i> Full Name</label>'
+      + '<label class="ob-label"><i class="fas fa-user"></i> Full Name <span style="color:var(--red)">*</span></label>'
       + '<input type="text" id="obName" class="ob-input" placeholder="e.g. Ramesh Kumar" maxlength="60" value="' + (existingProfile.name || '') + '">'
       + '</div>'
       + '<div class="ob-field">'
-      + '<label class="ob-label"><i class="fas fa-cake-candles"></i> Age</label>'
+      + '<label class="ob-label"><i class="fas fa-cake-candles"></i> Age <span class="ob-optional">(optional)</span></label>'
       + '<input type="number" id="obAge" class="ob-input" placeholder="e.g. 35" min="10" max="120" value="' + (existingProfile.age || '') + '">'
       + '</div>'
       + '<div class="ob-error" id="obStep1Error" style="display:none"></div>'
+      + '<div class="ob-btns-row">'
+      + (isEdit ? '' : '<button class="ob-btn-skip" id="obSkipBtn"><i class="fas fa-forward"></i> Skip</button>')
       + '<button class="ob-btn-next" id="obNextBtn"><i class="fas fa-arrow-right"></i> Next</button>'
       + '</div>'
-      // Step 2
+      + '</div>'
+      // Step 2 — Mobile + Country (both optional)
       + '<div class="ob-step" id="obStep2" style="display:none">'
-      + '<div class="ob-step-title"><span class="ob-step-num">2</span> Contact & Location</div>'
+      + '<div class="ob-step-title"><span class="ob-step-num">2</span> Contact &amp; Location <span style="font-size:0.7rem;color:var(--text-3);font-weight:400;margin-left:4px">(optional)</span></div>'
       + '<div class="ob-field">'
-      + '<label class="ob-label"><i class="fas fa-phone"></i> Mobile Number</label>'
+      + '<label class="ob-label"><i class="fas fa-phone"></i> Mobile Number <span class="ob-optional">(optional)</span></label>'
       + '<div class="ob-phone-wrap"><span class="ob-phone-prefix">+91</span><input type="tel" id="obMobile" class="ob-input ob-phone-input" placeholder="10-digit number" maxlength="10" value="' + (existingProfile.mobile || '') + '"></div>'
       + '</div>'
       + '<div class="ob-field">'
-      + '<label class="ob-label"><i class="fas fa-globe"></i> Country</label>'
+      + '<label class="ob-label"><i class="fas fa-globe"></i> Country <span class="ob-optional">(optional)</span></label>'
       + '<input type="text" id="obCountry" class="ob-input" placeholder="e.g. India" value="' + (existingProfile.country || 'India') + '">'
       + '<span class="ob-field-note"><i class="fas fa-info-circle"></i> This app is designed exclusively for Indian farmers</span>'
       + '</div>'
@@ -167,12 +170,36 @@ window.SmartAgroProfile = (function () {
     document.body.appendChild(modal);
     requestAnimationFrame(function() { modal.classList.add('visible'); });
 
+    // Skip button (new users only) — save with name only
+    var skipBtn = document.getElementById('obSkipBtn');
+    if (skipBtn) {
+      skipBtn.addEventListener('click', function() {
+        var name = document.getElementById('obName').value.trim();
+        var err  = document.getElementById('obStep1Error');
+        if (!name || name.length < 2) {
+          err.textContent = 'Please enter at least your name to continue.';
+          err.style.display = '';
+          document.getElementById('obName').focus();
+          return;
+        }
+        err.style.display = 'none';
+        var profile = { name: name, age: null, mobile: null, country: null, createdAt: Date.now() };
+        saveProfile(profile);
+        modal.classList.remove('visible');
+        setTimeout(function() { modal.remove(); }, 400);
+        renderBadge();
+        if (typeof showToast === 'function') showToast('\uD83C\uDF3E Welcome, ' + name + '!', 'success');
+      });
+    }
+
+    // Next: validate name only, age is optional
     document.getElementById('obNextBtn').addEventListener('click', function() {
       var name = document.getElementById('obName').value.trim();
-      var age  = parseInt(document.getElementById('obAge').value);
+      var ageVal = document.getElementById('obAge').value;
+      var age  = ageVal ? parseInt(ageVal) : null;
       var err  = document.getElementById('obStep1Error');
       if (!name || name.length < 2) { err.textContent = 'Please enter your full name (at least 2 characters).'; err.style.display = ''; return; }
-      if (!age || age < 10 || age > 120) { err.textContent = 'Please enter a valid age (10-120).'; err.style.display = ''; return; }
+      if (ageVal && (isNaN(age) || age < 10 || age > 120)) { err.textContent = 'Please enter a valid age between 10 and 120.'; err.style.display = ''; return; }
       err.style.display = 'none';
       document.getElementById('obStep1').style.display = 'none';
       document.getElementById('obStep2').style.display = '';
@@ -184,16 +211,19 @@ window.SmartAgroProfile = (function () {
       document.getElementById('obStep1').style.display = '';
     });
 
+    // Submit: mobile and country are optional
     document.getElementById('obSubmitBtn').addEventListener('click', function() {
       var mobile  = document.getElementById('obMobile').value.trim();
       var country = document.getElementById('obCountry').value.trim();
       var err2    = document.getElementById('obStep2Error');
 
-      if (!/^\d{10}$/.test(mobile)) {
-        err2.textContent = 'Please enter a valid 10-digit Indian mobile number.';
+      // Validate mobile only if user has entered something
+      if (mobile && !/^\d{10}$/.test(mobile)) {
+        err2.textContent = 'Please enter a valid 10-digit mobile number, or leave it blank.';
         err2.style.display = ''; return;
       }
-      if (!isIndia(country)) {
+      // Validate country only if entered and it is not India
+      if (country && !isIndia(country)) {
         err2.innerHTML = '<i class="fas fa-triangle-exclamation"></i> Sorry! SmartAgro is exclusively built for <strong>Indian farmers</strong>. This app does not support other countries.';
         err2.style.display = '';
         document.getElementById('obCountry').classList.add('ob-input-error');
@@ -202,11 +232,12 @@ window.SmartAgroProfile = (function () {
       }
       err2.style.display = 'none';
 
+      var ageRaw = document.getElementById('obAge').value;
       var profile = {
         name:    document.getElementById('obName').value.trim(),
-        age:     parseInt(document.getElementById('obAge').value),
-        mobile:  mobile,
-        country: 'India',
+        age:     ageRaw ? parseInt(ageRaw) : null,
+        mobile:  mobile || null,
+        country: country ? 'India' : null,
         createdAt: Date.now()
       };
       saveProfile(profile);
