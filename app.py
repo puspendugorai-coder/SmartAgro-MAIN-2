@@ -2416,16 +2416,20 @@ def _is_rate_limited_diagnose(ip: str) -> bool:
 # ─── Diagnose Crop via ensemble (Groq + Gemini) ───────────────────────────────
 MAX_IMAGE_B64_LEN = 14 * 1024 * 1024  # ~10 MB raw image
 
-# Vision-capable models tried per ensemble pass. Today Groq only has one
-# production-viable multimodal model on the general tier — meta-llama/llama-4-
-# scout-17b-16e-instruct was deprecated June 17, 2026. Add a second entry here
-# as soon as one exists; no other code needs to change.
-# Confirmed Groq vision-capable models (Sep 2026).
-# qwen/qwen3.8-27b supports image inputs on Groq's general tier.
-# meta-llama/llama-4-scout-17b-16e-instruct is kept as a second option.
+# Confirmed Groq vision model (Sep 2026): qwen/qwen3.8-27b is the only
+# general-tier multimodal model with image support on GroqCloud.
 vision_models = [
-    "meta-llama/llama-4-scout-17b-16e-instruct",
-    "meta-llama/llama-4-maverick-17b-128e-instruct",
+    "qwen/qwen3.8-27b",
+]
+
+# Gemini model waterfall — tried in order until one succeeds.
+# gemini-3.8-flash is the primary; the lite variants are fallbacks if
+# the primary is overloaded (503). This prevents a single overloaded
+# model from killing the entire diagnosis.
+GEMINI_MODEL_WATERFALL = [
+    GEMINI_DIAGNOSIS_MODEL,         # env override or gemini-3.8-flash
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
 ]
 
 
@@ -2473,9 +2477,9 @@ def ai_is_crop_image(image_b64):
 
 
 def _run_vision_pass(image_b64, prompt, sys_prompt, model, temperature):
-    """Run one diagnosis pass against one Groq vision model and return parsed JSON,
-    or None if that pass failed. Retries up to 3 times on 429/5xx with exponential
-    backoff so transient rate-limit spikes don't kill the whole analysis."""
+    """Run one diagnosis pass against the Groq vision model. Retries once on
+    429 (rate-limit) with a short 1-second pause. Fails immediately on 404
+    (model not found) to avoid wasting time."""
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
     body = {
         "model": model,
@@ -2489,40 +2493,40 @@ def _run_vision_pass(image_b64, prompt, sys_prompt, model, temperature):
         "temperature": temperature,
         "max_tokens": 1400,
     }
-    max_retries = 3
-    for attempt in range(max_retries):
+    for attempt in range(2):
         try:
             resp = requests.post("https://api.groq.com/openai/v1/chat/completions",
-                                  headers=headers, json=body, timeout=45)
+                                  headers=headers, json=body, timeout=30)
             if resp.status_code == 200:
                 raw = resp.json()["choices"][0]["message"]["content"].strip()
                 cleaned = re.sub(r"```(?:json)?", "", raw).replace("```", "").strip()
                 match = re.search(r"\{.*\}", cleaned, re.DOTALL)
-                if not match:
-                    return None
-                return json.loads(match.group())
-            # Rate-limited or server error — wait and retry
-            if resp.status_code in [429, 500, 502, 503, 504] and attempt < max_retries - 1:
-                wait = (2 ** attempt) + 1  # 2s, 3s
-                logger.warning(f"[Diagnose] Groq HTTP {resp.status_code} on attempt {attempt+1}, retrying in {wait}s...")
-                time.sleep(wait)
+                return json.loads(match.group()) if match else None
+            if resp.status_code == 404:
+                # Model doesn't exist — fail immediately, no retry
+                logger.error(f"[Diagnose] Groq model not found: {model}. "
+                             f"Check vision_models list. {resp.text[:200]}")
+                return None
+            if resp.status_code == 429 and attempt == 0:
+                logger.warning(f"[Diagnose] Groq 429 on {model}, retrying in 1s...")
+                time.sleep(1)
                 continue
-            logger.warning(f"[Diagnose] Groq HTTP {resp.status_code}: {resp.text[:200]}")
+            logger.warning(f"[Diagnose] Groq HTTP {resp.status_code} ({model}): {resp.text[:200]}")
             return None
         except Exception as e:
-            if attempt < max_retries - 1:
-                time.sleep(2 ** attempt)
-                continue
-            logger.warning(f"[Diagnose] Groq vision pass exception: {e}")
+            logger.warning(f"[Diagnose] Groq vision pass exception ({model}): {e}")
             return None
 
 
 def _run_gemini_pass(image_b64, prompt, sys_prompt):
-    """Run one diagnosis pass against Google's Gemini API and return parsed JSON, or None on any failure. When GEMINI_API_KEY is configured this gives the ensemble a genuinely INDEPENDENT second model (different vendor, different weights) so an agreement between Groq & Gemini is real cross-model evidence."""
+    """Run one diagnosis pass using Gemini's vision API.
+    Tries each model in GEMINI_MODEL_WATERFALL in order — if the primary
+    model returns 503 (overloaded), it instantly falls through to the next
+    lighter model instead of retrying the same overloaded endpoint.
+    Returns parsed JSON dict on success, or None on all failures."""
     if not GEMINI_API_KEY:
         return None
-    url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-           f"{GEMINI_DIAGNOSIS_MODEL}:generateContent")
+
     body = {
         "system_instruction": {"parts": [{"text": sys_prompt}]},
         "contents": [{
@@ -2532,33 +2536,52 @@ def _run_gemini_pass(image_b64, prompt, sys_prompt):
                 {"text": prompt},
             ],
         }],
-        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 3000,
-                             "responseMimeType": "application/json"},
+        "generationConfig": {
+            "temperature": 0.3,
+            "maxOutputTokens": 2000,
+            "responseMimeType": "application/json",
+        },
     }
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            resp = requests.post(url, headers={"Content-Type": "application/json",
-                                "x-goog-api-key": GEMINI_API_KEY}, json=body, timeout=60)
-            if resp.status_code == 200:
-                raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-                cleaned = re.sub(r"```(?:json)?", "", raw).replace("```", "").strip()
-                match = re.search(r"\{.*\}", cleaned, re.DOTALL)
-                if not match:
-                    return None
-                return json.loads(match.group())
-            
-            logger.warning(f"[Diagnose] Gemini HTTP {resp.status_code} (attempt {attempt+1}/{max_retries}): {resp.text[:200]}")
-            if resp.status_code in [429, 500, 502, 503, 504] and attempt < max_retries - 1:
-                time.sleep(2 ** attempt)
-                continue
-            return None
-        except Exception as e:
-            logger.warning(f"[Diagnose] Gemini exception (attempt {attempt+1}/{max_retries}): {e}")
-            if attempt < max_retries - 1:
-                time.sleep(2 ** attempt)
-                continue
-            return None
+    headers = {"Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY}
+
+    for model_name in GEMINI_MODEL_WATERFALL:
+        url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+               f"{model_name}:generateContent")
+        # Retry only on transient errors (429), NOT on 503 (move to next model).
+        # Never retry on 404 — that means wrong model name.
+        for attempt in range(2):
+            try:
+                resp = requests.post(url, headers=headers, json=body, timeout=30)
+                if resp.status_code == 200:
+                    cands = resp.json().get("candidates", [])
+                    if not cands:
+                        logger.warning(f"[Diagnose] Gemini {model_name}: empty candidates")
+                        break  # try next model
+                    raw = cands[0]["content"]["parts"][0]["text"].strip()
+                    cleaned = re.sub(r"```(?:json)?", "", raw).replace("```", "").strip()
+                    match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+                    if not match:
+                        break  # try next model
+                    logger.info(f"[Diagnose] Gemini success with model: {model_name}")
+                    return json.loads(match.group())
+
+                if resp.status_code == 429 and attempt == 0:
+                    # Rate limited — short pause and retry same model once
+                    logger.warning(f"[Diagnose] Gemini {model_name} 429, retrying in 1s...")
+                    time.sleep(1)
+                    continue
+
+                # 503 overloaded / 404 not found / other error → try next model
+                logger.warning(f"[Diagnose] Gemini {model_name} HTTP {resp.status_code}, "
+                               f"trying next model...  {resp.text[:120]}")
+                break
+
+            except Exception as e:
+                logger.warning(f"[Diagnose] Gemini {model_name} exception: {e}")
+                break  # try next model
+
+    logger.warning("[Diagnose] All Gemini models in waterfall exhausted")
+    return None
 
 
 def _diseases_agree(name_a, name_b):
