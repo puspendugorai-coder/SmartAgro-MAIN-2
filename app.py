@@ -157,9 +157,9 @@ DEBUG_MODE          = os.getenv("FLASK_DEBUG", "0") == "1"
 
 # Gemini is used as a genuinely INDEPENDENT second vision model in the crop
 # diagnosis ensemble. Only active when GEMINI_API_KEY is set in .env.
-# gemini-3.1-pro-preview: highest-accuracy Gemini model for detailed crop pathology
-# diagnosis. Switched from lite models which sacrificed quality for speed (Sep 2026).
-GEMINI_DIAGNOSIS_MODEL = os.getenv("GEMINI_DIAGNOSIS_MODEL", "gemini-3.1-pro-preview")
+# gemini-3.5-flash: stable GA model, good quota on free & paid tiers (Sep 2026).
+# gemini-3.1-pro-preview was removed — Pro models require a paid plan (causes 429).
+GEMINI_DIAGNOSIS_MODEL = os.getenv("GEMINI_DIAGNOSIS_MODEL", "gemini-3.5-flash")
 
 # ── Per-feature usage analytics ─────────────────────────────────────────────
 # Tracks how often each SmartAgro feature is used (page views + API calls) as
@@ -2427,12 +2427,14 @@ vision_models = [
 ]
 
 # Gemini model waterfall — tried in order until one succeeds.
-# ACCURACY-FIRST: Pro model gives far better crop disease analysis than lite variants.
-# gemini-3.8-flash is the fast fallback if Pro is overloaded (503).
-# Lite models removed — not accurate enough for agricultural diagnosis.
+# All 3 models are available on free & paid tiers (no Pro models — they cause 429).
+# gemini-3.5-flash  : stable GA, good quota, accurate  → primary
+# gemini-3.8-flash  : newest GA flagship, high capacity → fallback
+# gemini-3.5-flash-lite: highest quota, fastest         → last resort
 GEMINI_MODEL_WATERFALL = [
-    GEMINI_DIAGNOSIS_MODEL,   # env override or gemini-3.1-pro-preview (most accurate)
-    "gemini-3.8-flash",       # fast GA fallback if Pro is overloaded
+    GEMINI_DIAGNOSIS_MODEL,   # env override or gemini-3.5-flash
+    "gemini-3.8-flash",       # newest GA flagship
+    "gemini-3.5-flash-lite",  # highest quota, always-on safety net
 ]
 
 
