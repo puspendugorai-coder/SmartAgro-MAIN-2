@@ -2614,11 +2614,12 @@ def _run_gemini_pass(image_b64, prompt, sys_prompt):
                                    f"repair attempts, trying next model")
                     break
 
-                if resp.status_code == 429 and attempt == 0:
-                    # Rate limited — short pause and retry same model once
-                    logger.warning(f"[Diagnose] Gemini {model_name} 429, retrying in 1s...")
-                    time.sleep(1)
-                    continue
+                if resp.status_code == 429:
+                    # Quota exhausted — retrying is pointless (quota doesn't
+                    # recover in 1 second). Fail fast and let Groq secondary cover it.
+                    logger.warning(f"[Diagnose] Gemini {model_name} 429 quota exceeded, "
+                                   f"trying next model...")
+                    break
 
                 # 503 overloaded / 404 not found / other error → try next model
                 logger.warning(f"[Diagnose] Gemini {model_name} HTTP {resp.status_code}, "
