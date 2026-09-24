@@ -157,8 +157,8 @@ DEBUG_MODE          = os.getenv("FLASK_DEBUG", "0") == "1"
 
 # Gemini is used as a genuinely INDEPENDENT second vision model in the crop
 # diagnosis ensemble. Only active when GEMINI_API_KEY is set in .env.
-# gemini-3.8-flash: current-gen model with native multimodal vision support (Sep 2026)
-GEMINI_DIAGNOSIS_MODEL = os.getenv("GEMINI_DIAGNOSIS_MODEL", "gemini-3.8-flash")
+# gemini-3.1-flash-lite: fast, reliable model — switched from gemini-3.8-flash due to frequent 503 overload errors (Sep 2026)
+GEMINI_DIAGNOSIS_MODEL = os.getenv("GEMINI_DIAGNOSIS_MODEL", "gemini-3.1-flash-lite")
 
 # ── Per-feature usage analytics ─────────────────────────────────────────────
 # Tracks how often each SmartAgro feature is used (page views + API calls) as
@@ -2419,17 +2419,17 @@ MAX_IMAGE_B64_LEN = 14 * 1024 * 1024  # ~10 MB raw image
 # Confirmed Groq vision model (Sep 2026): qwen/qwen3.8-27b is the only
 # general-tier multimodal model with image support on GroqCloud.
 vision_models = [
-    "qwen/qwen3.8-27b",
+    "qwen/qwen3.6-27b", 
 ]
 
 # Gemini model waterfall — tried in order until one succeeds.
-# gemini-3.8-flash is the primary; the lite variants are fallbacks if
-# the primary is overloaded (503). This prevents a single overloaded
-# model from killing the entire diagnosis.
+# gemini-3.1-flash-lite is the primary (fast, reliable); heavier models
+# are fallbacks in case the lite model is unavailable. This prevents a
+# single overloaded model from killing the entire diagnosis.
 GEMINI_MODEL_WATERFALL = [
-    GEMINI_DIAGNOSIS_MODEL,         # env override or gemini-3.8-flash
+    GEMINI_DIAGNOSIS_MODEL,         # env override or gemini-3.1-flash-lite
     "gemini-3.5-flash-lite",
-    "gemini-3.1-flash-lite",
+    "gemini-3.8-flash",
 ]
 
 
