@@ -2427,14 +2427,11 @@ vision_models = [
 ]
 
 # Gemini model waterfall — tried in order until one succeeds.
-# All 3 models are available on free & paid tiers (no Pro models — they cause 429).
-# gemini-3.5-flash  : stable GA, good quota, accurate  → primary
-# gemini-3.8-flash  : newest GA flagship, high capacity → fallback
-# gemini-3.5-flash-lite: highest quota, fastest         → last resort
+# ONLY gemini-3.5-flash kept — confirmed working in production logs (Sep 2026).
+# gemini-3.8-flash removed (consistent 503).
+# gemini-3.5-flash-lite removed (consistent 503 + caused 30s hangs).
 GEMINI_MODEL_WATERFALL = [
-    GEMINI_DIAGNOSIS_MODEL,   # env override or gemini-3.5-flash
-    "gemini-3.8-flash",       # newest GA flagship
-    "gemini-3.5-flash-lite",  # highest quota, always-on safety net
+    GEMINI_DIAGNOSIS_MODEL,   # gemini-3.5-flash — the only model confirmed to work
 ]
 
 
@@ -2501,7 +2498,7 @@ def _run_vision_pass(image_b64, prompt, sys_prompt, model, temperature):
     for attempt in range(2):
         try:
             resp = requests.post("https://api.groq.com/openai/v1/chat/completions",
-                                  headers=headers, json=body, timeout=30)
+                                  headers=headers, json=body, timeout=15)
             if resp.status_code == 200:
                 raw = resp.json()["choices"][0]["message"]["content"].strip()
                 cleaned = re.sub(r"```(?:json)?", "", raw).replace("```", "").strip()
@@ -2513,9 +2510,10 @@ def _run_vision_pass(image_b64, prompt, sys_prompt, model, temperature):
                              f"Check vision_models list. {resp.text[:200]}")
                 return None
             if resp.status_code == 429 and attempt == 0:
-                logger.warning(f"[Diagnose] Groq 429 on {model}, retrying in 1s...")
-                time.sleep(1)
-                continue
+                # Rate limited — log and fail immediately (no sleep).
+                # Gemini runs in parallel and will cover this failure.
+                logger.warning(f"[Diagnose] Groq 429 on {model}, failing fast (Gemini covers).")
+                return None
             logger.warning(f"[Diagnose] Groq HTTP {resp.status_code} ({model}): {resp.text[:200]}")
             return None
         except Exception as e:
@@ -2556,7 +2554,7 @@ def _run_gemini_pass(image_b64, prompt, sys_prompt):
         # Never retry on 404 — that means wrong model name.
         for attempt in range(2):
             try:
-                resp = requests.post(url, headers=headers, json=body, timeout=30)
+                resp = requests.post(url, headers=headers, json=body, timeout=10)
                 if resp.status_code == 200:
                     cands = resp.json().get("candidates", [])
                     if not cands:
