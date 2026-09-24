@@ -2680,66 +2680,40 @@ def diagnose_crop():
     if lang != "en" and lang_name:
         sys_prompt += f" All free-text values must be in {lang_name}."
 
-    # ── Step 2: Primary Groq Pass + Parallel Gemini Pass ─────────────────────
-    # Groq and Gemini both run concurrently. Gemini is NOT just a fallback —
-    # it runs alongside Groq to provide a genuine cross-vendor ensemble.
-    # If Groq is rate-limited, Gemini alone will still produce a valid result.
+    # ── Step 2: Gemini PRIMARY → Groq SECONDARY ──────────────────────────────
+    # Gemini (gemini-3.5-flash) is the primary model — better crop pathology
+    # accuracy and not subject to the Groq ITPM rate limits.
+    # Groq (qwen/qwen3.8-27b) is the secondary — activates the INSTANT Gemini
+    # fails (503 returns in < 1s, so Groq kicks in with no meaningful delay).
     results, models_used = [], []
     gemini_display = f"gemini:{GEMINI_DIAGNOSIS_MODEL}"
 
-    futures_map = {}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-
-        # Submit Groq passes
-        if GROQ_API_KEY:
-            # One Groq pass at low temperature for a stable, deterministic result.
-            # A single pass is enough — Gemini Pro runs in parallel and provides
-            # the cross-vendor accuracy check. Two Groq passes doubled rate-limit hits.
-            pass_plan = [
-                (0, vision_models[0], 0.2)
-            ]
-            for i, model, temp in pass_plan:
-                def _run_groq_pass(i=i, model=model, temp=temp):
-                    try:
-                        return ("groq", model, _run_vision_pass(image_b64, prompt, sys_prompt, model, temp))
-                    except Exception as e:
-                        logger.warning(f"[Diagnose] Groq pass {i} ({model}) failed: {e}")
-                        return ("groq", model, None)
-                futures_map[executor.submit(_run_groq_pass)] = f"groq:{model}"
-
-        # Submit Gemini pass in parallel (always, if key is set)
-        if GEMINI_API_KEY:
-            def _run_gemini_concurrent():
-                try:
-                    return ("gemini", gemini_display, _run_gemini_pass(image_b64, prompt, sys_prompt))
-                except Exception as e:
-                    logger.warning(f"[Diagnose] Gemini concurrent pass failed: {e}")
-                    return ("gemini", gemini_display, None)
-            futures_map[executor.submit(_run_gemini_concurrent)] = "gemini"
-
-        for future in concurrent.futures.as_completed(futures_map):
-            try:
-                provider, model_id, parsed = future.result()
-                if parsed and parsed.get("disease"):
-                    results.append(parsed)
-                    models_used.append(model_id)
-                    logger.info(f"[Diagnose] ✓ {model_id} returned a result")
-                else:
-                    logger.info(f"[Diagnose] ✗ {model_id} returned no usable result")
-            except Exception as e:
-                logger.warning(f"[Diagnose] future exception: {e}")
-
-    # If Groq entirely failed (all passes returned None) but Gemini hasn't run yet
-    # (e.g. GEMINI_API_KEY was not set during parallel run), try Gemini as last resort.
-    if not results and GEMINI_API_KEY and not any("gemini" in m for m in models_used):
-        logger.info("[Diagnose] All passes failed — last-resort Gemini attempt...")
+    # ── PRIMARY: Gemini ───────────────────────────────────────────────────────
+    if GEMINI_API_KEY:
         try:
             gemini_res = _run_gemini_pass(image_b64, prompt, sys_prompt)
             if gemini_res and gemini_res.get("disease"):
                 results.append(gemini_res)
                 models_used.append(gemini_display)
+                logger.info(f"[Diagnose] ✓ PRIMARY Gemini ({GEMINI_DIAGNOSIS_MODEL}) succeeded")
+            else:
+                logger.info(f"[Diagnose] ✗ PRIMARY Gemini failed — activating Groq secondary...")
         except Exception as e:
-            logger.warning(f"[Diagnose] Last-resort Gemini pass failed: {e}")
+            logger.warning(f"[Diagnose] PRIMARY Gemini exception: {e} — activating Groq secondary...")
+
+    # ── SECONDARY: Groq (activates immediately if Gemini failed) ─────────────
+    if not results and GROQ_API_KEY:
+        try:
+            groq_res = _run_vision_pass(image_b64, prompt, sys_prompt, vision_models[0], 0.2)
+            if groq_res and groq_res.get("disease"):
+                results.append(groq_res)
+                models_used.append(f"groq:{vision_models[0]}")
+                logger.info(f"[Diagnose] ✓ SECONDARY Groq ({vision_models[0]}) succeeded")
+            else:
+                logger.info(f"[Diagnose] ✗ SECONDARY Groq also failed")
+        except Exception as e:
+            logger.warning(f"[Diagnose] SECONDARY Groq exception: {e}")
+
 
     if not results:
         return jsonify({"error": "All vision models failed. Check your API keys in .env"}), 500
