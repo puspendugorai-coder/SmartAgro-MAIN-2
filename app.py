@@ -2427,11 +2427,13 @@ vision_models = [
 ]
 
 # Gemini model waterfall — tried in order until one succeeds.
-# ONLY gemini-3.5-flash kept — confirmed working in production logs (Sep 2026).
-# gemini-3.8-flash removed (consistent 503).
-# gemini-3.5-flash-lite removed (consistent 503 + caused 30s hangs).
+# gemini-3.5-flash: primary — confirmed working. Timeout=20s (vision needs time).
+# gemini-3.8-flash: fallback — gets 503 FAST (< 1s) when overloaded, so adds
+#   almost no delay when failing, but can serve when 3.5-flash is saturated.
+# gemini-3.5-flash-lite: EXCLUDED — caused genuine 30s hangs (not fast 503).
 GEMINI_MODEL_WATERFALL = [
-    GEMINI_DIAGNOSIS_MODEL,   # gemini-3.5-flash — the only model confirmed to work
+    GEMINI_DIAGNOSIS_MODEL,   # gemini-3.5-flash — primary, confirmed working
+    "gemini-3.8-flash",       # fast-failing fallback (503 in < 1s when overloaded)
 ]
 
 
@@ -2554,7 +2556,7 @@ def _run_gemini_pass(image_b64, prompt, sys_prompt):
         # Never retry on 404 — that means wrong model name.
         for attempt in range(2):
             try:
-                resp = requests.post(url, headers=headers, json=body, timeout=10)
+                resp = requests.post(url, headers=headers, json=body, timeout=20)
                 if resp.status_code == 200:
                     cands = resp.json().get("candidates", [])
                     if not cands:
