@@ -157,8 +157,9 @@ DEBUG_MODE          = os.getenv("FLASK_DEBUG", "0") == "1"
 
 # Gemini is used as a genuinely INDEPENDENT second vision model in the crop
 # diagnosis ensemble. Only active when GEMINI_API_KEY is set in .env.
-# gemini-3.1-flash-lite: fast, reliable model — switched from gemini-3.8-flash due to frequent 503 overload errors (Sep 2026)
-GEMINI_DIAGNOSIS_MODEL = os.getenv("GEMINI_DIAGNOSIS_MODEL", "gemini-3.1-flash-lite")
+# gemini-3.1-pro-preview: highest-accuracy Gemini model for detailed crop pathology
+# diagnosis. Switched from lite models which sacrificed quality for speed (Sep 2026).
+GEMINI_DIAGNOSIS_MODEL = os.getenv("GEMINI_DIAGNOSIS_MODEL", "gemini-3.1-pro-preview")
 
 # ── Per-feature usage analytics ─────────────────────────────────────────────
 # Tracks how often each SmartAgro feature is used (page views + API calls) as
@@ -275,8 +276,10 @@ DIAGNOSIS_LOG_PATH   = os.path.join(DIAGNOSIS_LOG_DIR, "log.jsonl")
 os.makedirs(DIAGNOSIS_IMAGES_DIR, exist_ok=True)
 _diagnosis_log_lock = threading.Lock()
 
-# Number of independent diagnosis passes to run and cross-check per image.
-ENSEMBLE_PASSES = 2
+# Number of independent Groq diagnosis passes per image.
+# 1 = single fast pass (Gemini Pro runs in parallel and provides cross-check).
+# Increasing this multiplies rate-limit pressure on Groq — keep at 1.
+ENSEMBLE_PASSES = 1
 
 _translation_cache = {}
 
@@ -2418,18 +2421,18 @@ MAX_IMAGE_B64_LEN = 14 * 1024 * 1024  # ~10 MB raw image
 
 # Confirmed Groq vision model (Sep 2026): qwen/qwen3.8-27b is the only
 # general-tier multimodal model with image support on GroqCloud.
+# NOTE: qwen/qwen3.6-27b does NOT exist — causes 404. Only 3.8 is valid.
 vision_models = [
-    "qwen/qwen3.6-27b", 
+    "qwen/qwen3.8-27b",
 ]
 
 # Gemini model waterfall — tried in order until one succeeds.
-# gemini-3.1-flash-lite is the primary (fast, reliable); heavier models
-# are fallbacks in case the lite model is unavailable. This prevents a
-# single overloaded model from killing the entire diagnosis.
+# ACCURACY-FIRST: Pro model gives far better crop disease analysis than lite variants.
+# gemini-3.8-flash is the fast fallback if Pro is overloaded (503).
+# Lite models removed — not accurate enough for agricultural diagnosis.
 GEMINI_MODEL_WATERFALL = [
-    GEMINI_DIAGNOSIS_MODEL,         # env override or gemini-3.1-flash-lite
-    "gemini-3.5-flash-lite",
-    "gemini-3.8-flash",
+    GEMINI_DIAGNOSIS_MODEL,   # env override or gemini-3.1-pro-preview (most accurate)
+    "gemini-3.8-flash",       # fast GA fallback if Pro is overloaded
 ]
 
 
@@ -2683,14 +2686,15 @@ def diagnose_crop():
     gemini_display = f"gemini:{GEMINI_DIAGNOSIS_MODEL}"
 
     futures_map = {}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
 
         # Submit Groq passes
         if GROQ_API_KEY:
-            pass_temperatures = [0.2, 0.6, 0.9]
+            # One Groq pass at low temperature for a stable, deterministic result.
+            # A single pass is enough — Gemini Pro runs in parallel and provides
+            # the cross-vendor accuracy check. Two Groq passes doubled rate-limit hits.
             pass_plan = [
-                (i, vision_models[i % len(vision_models)], pass_temperatures[i % len(pass_temperatures)])
-                for i in range(ENSEMBLE_PASSES)
+                (0, vision_models[0], 0.2)
             ]
             for i, model, temp in pass_plan:
                 def _run_groq_pass(i=i, model=model, temp=temp):
