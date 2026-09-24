@@ -2436,6 +2436,13 @@ GEMINI_MODEL_WATERFALL = [
     "gemini-3.8-flash",       # fast-failing fallback (503 in < 1s when overloaded)
 ]
 
+# ── Gemini quota-exhausted cache ─────────────────────────────────────────────
+# When Gemini returns 429 (quota exceeded), we skip ALL Gemini calls for
+# GEMINI_QUOTA_SKIP_SEC seconds so every request doesn't waste time hitting
+# a known-exhausted endpoint. The flag clears itself automatically.
+_gemini_quota_exhausted_until = 0.0   # epoch timestamp; 0 = not exhausted
+_gemini_quota_lock = threading.Lock()
+GEMINI_QUOTA_SKIP_SEC = 30 * 60       # 30 minutes
 
 def ai_is_crop_image(image_b64):
     """Fast, low-token sanity check BEFORE running the full diagnosis prompt: does this photo actually show a plant/crop part? Without this, the main prompt will happily hallucinate a plausible-sounding disease name for a photo of a hand, a sack of grain, or a selfie — which is worse than useless for a farmer trying to protect a crop. Fails OPEN (assumes "yes, it's a plant") on any error/timeout/missing key, so a flaky classifier call never blocks a genuine diagnosis. Returns (is_plant: bool, reason: str | None)."""
@@ -2569,9 +2576,19 @@ def _run_gemini_pass(image_b64, prompt, sys_prompt):
     """Run one diagnosis pass using Gemini's vision API.
     Tries each model in GEMINI_MODEL_WATERFALL in order — if the primary
     model returns 503 (overloaded), it instantly falls through to the next
-    lighter model instead of retrying the same overloaded endpoint.
+    model. When quota is exhausted (429), the entire Gemini path is skipped
+    for GEMINI_QUOTA_SKIP_SEC seconds so Groq secondary kicks in immediately.
     Returns parsed JSON dict on success, or None on all failures."""
     if not GEMINI_API_KEY:
+        return None
+
+    # ── Quota-exhausted fast-exit ─────────────────────────────────────────
+    global _gemini_quota_exhausted_until
+    with _gemini_quota_lock:
+        remaining = _gemini_quota_exhausted_until - time.time()
+    if remaining > 0:
+        mins = int(remaining / 60) + 1
+        logger.warning(f"[Diagnose] Gemini quota exhausted — skipping for ~{mins}m, Groq covers")
         return None
 
     body = {
@@ -2594,41 +2611,38 @@ def _run_gemini_pass(image_b64, prompt, sys_prompt):
     for model_name in GEMINI_MODEL_WATERFALL:
         url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
                f"{model_name}:generateContent")
-        # Retry only on transient errors (429), NOT on 503 (move to next model).
-        # Never retry on 404 — that means wrong model name.
-        for attempt in range(2):
-            try:
-                resp = requests.post(url, headers=headers, json=body, timeout=20)
-                if resp.status_code == 200:
-                    cands = resp.json().get("candidates", [])
-                    if not cands:
-                        logger.warning(f"[Diagnose] Gemini {model_name}: empty candidates")
-                        break  # try next model
-                    raw = cands[0]["content"]["parts"][0]["text"].strip()
-                    parsed = _repair_and_parse_json(raw)
-                    if parsed is not None:
-                        logger.info(f"[Diagnose] Gemini success with model: {model_name}")
-                        return parsed
-                    # JSON repair failed — log and try next model
-                    logger.warning(f"[Diagnose] Gemini {model_name}: JSON parse failed after "
-                                   f"repair attempts, trying next model")
-                    break
+        try:
+            resp = requests.post(url, headers=headers, json=body, timeout=20)
+            if resp.status_code == 200:
+                cands = resp.json().get("candidates", [])
+                if not cands:
+                    logger.warning(f"[Diagnose] Gemini {model_name}: empty candidates")
+                    continue  # try next model
+                raw = cands[0]["content"]["parts"][0]["text"].strip()
+                parsed = _repair_and_parse_json(raw)
+                if parsed is not None:
+                    logger.info(f"[Diagnose] Gemini success with model: {model_name}")
+                    return parsed
+                logger.warning(f"[Diagnose] Gemini {model_name}: JSON parse failed after "
+                               f"repair attempts, trying next model")
+                continue  # try next model
 
-                if resp.status_code == 429:
-                    # Quota exhausted — retrying is pointless (quota doesn't
-                    # recover in 1 second). Fail fast and let Groq secondary cover it.
-                    logger.warning(f"[Diagnose] Gemini {model_name} 429 quota exceeded, "
-                                   f"trying next model...")
-                    break
+            if resp.status_code == 429:
+                # Quota exhausted — set the skip flag and bail out of the entire
+                # waterfall. No point trying other Gemini models; Groq covers.
+                with _gemini_quota_lock:
+                    _gemini_quota_exhausted_until = time.time() + GEMINI_QUOTA_SKIP_SEC
+                logger.warning(f"[Diagnose] Gemini {model_name} 429 quota exceeded — "
+                               f"skipping Gemini for {GEMINI_QUOTA_SKIP_SEC // 60}m")
+                return None  # skip entire waterfall immediately
 
-                # 503 overloaded / 404 not found / other error → try next model
-                logger.warning(f"[Diagnose] Gemini {model_name} HTTP {resp.status_code}, "
-                               f"trying next model...  {resp.text[:120]}")
-                break
+            # 503 overloaded / 404 not found / other error → try next model
+            logger.warning(f"[Diagnose] Gemini {model_name} HTTP {resp.status_code}, "
+                           f"trying next model...  {resp.text[:120]}")
 
-            except Exception as e:
-                logger.warning(f"[Diagnose] Gemini {model_name} exception: {e}")
-                break  # try next model
+        except Exception as e:
+            logger.warning(f"[Diagnose] Gemini {model_name} exception: {e}")
+            # continue to next model
 
     logger.warning("[Diagnose] All Gemini models in waterfall exhausted")
     return None
