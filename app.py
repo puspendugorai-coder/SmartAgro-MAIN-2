@@ -2479,6 +2479,47 @@ def ai_is_crop_image(image_b64):
         logger.warning(f"[Diagnose] ai_is_crop_image check failed (failing open): {e}")
         return True, None
 
+def _repair_and_parse_json(text):
+    """Robustly parse JSON from LLM output. Tries several repair strategies
+    to survive common model mistakes like missing commas, trailing commas,
+    unescaped control characters, and minor formatting issues.
+    Returns a parsed dict/list, or None if all strategies fail."""
+    # Step 1: strip markdown fences
+    cleaned = re.sub(r"```(?:json)?\s*", "", text).replace("```", "").strip()
+
+    # Step 2: extract outermost JSON object
+    match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+    if not match:
+        return None
+    raw = match.group()
+
+    # Step 3: standard parse (fast path — works most of the time)
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+
+    # Step 4: remove trailing commas before } or ]  (most common LLM mistake)
+    fixed = re.sub(r",\s*([}\]])", r"\1", raw)
+    try:
+        return json.loads(fixed)
+    except json.JSONDecodeError:
+        pass
+
+    # Step 5: strip control characters (\n inside strings breaks JSON)
+    fixed2 = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", " ", fixed)
+    try:
+        return json.loads(fixed2)
+    except json.JSONDecodeError:
+        pass
+
+    # Step 6: last resort — replace literal newlines inside strings
+    fixed3 = re.sub(r'(?<!\\)\n', ' ', fixed2)
+    try:
+        return json.loads(fixed3)
+    except json.JSONDecodeError:
+        return None
+
 
 def _run_vision_pass(image_b64, prompt, sys_prompt, model, temperature):
     """Run one diagnosis pass against the Groq vision model. Retries once on
@@ -2503,9 +2544,10 @@ def _run_vision_pass(image_b64, prompt, sys_prompt, model, temperature):
                                   headers=headers, json=body, timeout=15)
             if resp.status_code == 200:
                 raw = resp.json()["choices"][0]["message"]["content"].strip()
-                cleaned = re.sub(r"```(?:json)?", "", raw).replace("```", "").strip()
-                match = re.search(r"\{.*\}", cleaned, re.DOTALL)
-                return json.loads(match.group()) if match else None
+                parsed = _repair_and_parse_json(raw)
+                if parsed is None:
+                    logger.warning(f"[Diagnose] Groq ({model}): JSON parse failed after repair attempts")
+                return parsed
             if resp.status_code == 404:
                 # Model doesn't exist — fail immediately, no retry
                 logger.error(f"[Diagnose] Groq model not found: {model}. "
@@ -2563,12 +2605,14 @@ def _run_gemini_pass(image_b64, prompt, sys_prompt):
                         logger.warning(f"[Diagnose] Gemini {model_name}: empty candidates")
                         break  # try next model
                     raw = cands[0]["content"]["parts"][0]["text"].strip()
-                    cleaned = re.sub(r"```(?:json)?", "", raw).replace("```", "").strip()
-                    match = re.search(r"\{.*\}", cleaned, re.DOTALL)
-                    if not match:
-                        break  # try next model
-                    logger.info(f"[Diagnose] Gemini success with model: {model_name}")
-                    return json.loads(match.group())
+                    parsed = _repair_and_parse_json(raw)
+                    if parsed is not None:
+                        logger.info(f"[Diagnose] Gemini success with model: {model_name}")
+                        return parsed
+                    # JSON repair failed — log and try next model
+                    logger.warning(f"[Diagnose] Gemini {model_name}: JSON parse failed after "
+                                   f"repair attempts, trying next model")
+                    break
 
                 if resp.status_code == 429 and attempt == 0:
                     # Rate limited — short pause and retry same model once
